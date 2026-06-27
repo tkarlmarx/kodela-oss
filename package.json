@@ -1,0 +1,17 @@
+{
+  "name": "kodela-oss",
+  "version": "0.2.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "build": "pnpm run typecheck && pnpm -r --if-present run build",
+    "typecheck:libs": "tsc --build",
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./lib/vscode\" --filter \"./lib/proxy\" --if-present run typecheck",
+    "test": "pnpm -r --if-present run test"
+  },
+  "devDependencies": {
+    "tsx": "catalog:",
+    "typescript": "~5.9.2"
+  }
+}

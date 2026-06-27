@@ -1,0 +1,369 @@
+{
+  "name": "kodela",
+  "version": "0.2.4",
+  "private": true,
+  "description": "Kodela VS Code extension — code context layer for the editor",
+  "publisher": "kodela",
+  "displayName": "Kodela",
+  "engines": {
+    "vscode": "^1.90.0",
+    "node": ">=20"
+  },
+  "categories": ["Other"],
+  "activationEvents": [
+    "onStartupFinished",
+    "workspaceContains:**/.kodela",
+    "onChatParticipant:kodela.context"
+  ],
+  "main": "./dist/extension.cjs",
+  "contributes": {
+    "chatParticipants": [
+      {
+        "id": "kodela.context",
+        "name": "kodela",
+        "fullName": "Kodela Context Capture",
+        "description": "Capture Copilot chat intent and enrich Kodela sessions"
+      }
+    ],
+    "commands": [
+      {
+        "command": "kodela.init",
+        "title": "Kodela: Initialize Repository",
+        "icon": "$(add)"
+      },
+      {
+        "command": "kodela.add",
+        "title": "Kodela: Add Annotation"
+      },
+      {
+        "command": "kodela.explain",
+        "title": "Kodela: Explain File"
+      },
+      {
+        "command": "kodela.heal",
+        "title": "Kodela: Heal Annotations",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "kodela.archive",
+        "title": "Kodela: Archive Orphaned"
+      },
+      {
+        "command": "kodela.showStatus",
+        "title": "Kodela: Show Status",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "kodela.detectAi",
+        "title": "Kodela: Detect AI Commits"
+      },
+      {
+        "command": "kodela.refresh",
+        "title": "Kodela: Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "kodela.deleteEntry",
+        "title": "Kodela: Delete Annotation",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "kodela.sortBySeverity",
+        "title": "Kodela: Sort Explorer by Severity",
+        "icon": "$(symbol-misc)"
+      },
+      {
+        "command": "kodela.sortByStatus",
+        "title": "Kodela: Sort Explorer by Status",
+        "icon": "$(list-ordered)"
+      },
+      {
+        "command": "kodela.sortByFile",
+        "title": "Kodela: Sort Explorer by File",
+        "icon": "$(list-flat)"
+      },
+      {
+        "command": "kodela.revealEntry",
+        "title": "Kodela: Go to Annotation"
+      },
+      {
+        "command": "kodela.revealInExplorer",
+        "title": "Kodela: Reveal in Explorer"
+      },
+      {
+        "command": "kodela.showLog",
+        "title": "Kodela: Show Log",
+        "icon": "$(output)"
+      },
+      {
+        "command": "kodela.setup",
+        "title": "Kodela: Setup Workspace",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "kodela.watchStart",
+        "title": "Kodela: Start Watch",
+        "icon": "$(play)"
+      },
+      {
+        "command": "kodela.watchStop",
+        "title": "Kodela: Stop Watch",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "kodela.watchStatus",
+        "title": "Kodela: Watch Status",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "kodela.mcpStart",
+        "title": "Kodela: Launch MCP",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "kodela.mcpStatus",
+        "title": "Kodela: MCP Status",
+        "icon": "$(server-process)"
+      },
+      {
+        "command": "kodela.showCurrentMetadata",
+        "title": "Kodela: Show Current Metadata",
+        "icon": "$(symbol-key)"
+      },
+      {
+        "command": "kodela.openLinkedUrl",
+        "title": "Kodela: Launch Linked URL",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "kodela.configureProxyVariables",
+        "title": "Kodela: Define Variables / Proxy",
+        "icon": "$(settings-gear)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "kodelaActivity",
+          "title": "Kodela",
+          "icon": "media/kodela-activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "kodelaActivity": [
+        {
+          "id": "kodelaControlCenter",
+          "name": "Control Center",
+          "icon": "media/kodela-activity.svg",
+          "when": "workspaceFolderCount > 0"
+        },
+        {
+          "id": "kodelaExplorer",
+          "name": "Annotations",
+          "icon": "media/kodela-activity.svg",
+          "when": "workspaceFolderCount > 0"
+        }
+      ]
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "command": "kodela.add",
+          "group": "kodela@1",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "kodela.explain",
+          "group": "kodela@2"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "kodela.init",
+          "when": "view == kodelaExplorer",
+          "group": "navigation@1"
+        },
+        {
+          "command": "kodela.showStatus",
+          "when": "view == kodelaExplorer",
+          "group": "navigation@2"
+        },
+        {
+          "command": "kodela.heal",
+          "when": "view == kodelaExplorer",
+          "group": "navigation@3"
+        },
+        {
+          "command": "kodela.showLog",
+          "when": "view == kodelaExplorer",
+          "group": "navigation@4"
+        },
+        {
+          "command": "kodela.refresh",
+          "when": "view == kodelaExplorer",
+          "group": "navigation@5"
+        },
+        {
+          "command": "kodela.sortBySeverity",
+          "when": "view == kodelaExplorer",
+          "group": "1_sort@1"
+        },
+        {
+          "command": "kodela.sortByStatus",
+          "when": "view == kodelaExplorer",
+          "group": "1_sort@2"
+        },
+        {
+          "command": "kodela.sortByFile",
+          "when": "view == kodelaExplorer",
+          "group": "1_sort@3"
+        },
+        {
+          "command": "kodela.watchStatus",
+          "when": "view == kodelaControlCenter",
+          "group": "navigation@1"
+        },
+        {
+          "command": "kodela.showStatus",
+          "when": "view == kodelaControlCenter",
+          "group": "navigation@2"
+        },
+        {
+          "command": "kodela.refresh",
+          "when": "view == kodelaControlCenter",
+          "group": "navigation@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "kodela.deleteEntry",
+          "when": "view == kodelaExplorer && viewItem == kodelaEntry",
+          "group": "inline"
+        },
+        {
+          "command": "kodela.showCurrentMetadata",
+          "when": "view == kodelaExplorer && viewItem == kodelaEntry",
+          "group": "inline@1"
+        },
+        {
+          "command": "kodela.openLinkedUrl",
+          "when": "view == kodelaExplorer && viewItem == kodelaEntry",
+          "group": "inline@2"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Kodela",
+      "properties": {
+        "kodela.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable the Kodela extension."
+        },
+        "kodela.showDecorations": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show gutter icons and line highlights for annotated code."
+        },
+        "kodela.showCodeLens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show CodeLens annotation counts above annotated lines."
+        },
+        "kodela.decorationOpacity": {
+          "type": "number",
+          "default": 0.15,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Background highlight opacity for annotated line ranges (0–1)."
+        },
+        "kodela.detectAiInsertions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a prompt to add a context annotation when a large block of code is pasted or inserted quickly (AI-insertion heuristic)."
+        },
+        "kodela.showUncertainDiagnostics": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show uncertain annotations in the Problems panel as informational diagnostics. Orphaned annotations are always reported."
+        },
+        "kodela.autoStartWatchForAiTools": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically ensure detached watch runs with auto-annotate when AI tool context is detected (on extension activation and after Setup Workspace)."
+        },
+        "kodela.autoStartWatchForCopilot": {
+          "type": "boolean",
+          "default": true,
+          "description": "Legacy alias for auto-start behavior. Prefer kodela.autoStartWatchForAiTools for AI-tool-wide auto-watch."
+        },
+        "kodela.sessionGoal": {
+          "type": "string",
+          "default": "",
+          "description": "Optional goal captured for watch sessions. When set, Kodela passes it as KODELA_GOAL so session/handoff summaries include the intended outcome."
+        },
+        "kodela.debounceMs": {
+          "type": "integer",
+          "default": 500,
+          "minimum": 0,
+          "description": "How long (in milliseconds) the file-watcher waits after the last change before triggering an auto-heal. Increase this on slower machines or large repos; decrease it for snappier feedback."
+        },
+        "kodela.preferredAiTool": {
+          "type": "string",
+          "default": "",
+          "description": "Pin a specific AI tool name for annotation attribution (e.g. \"copilot\", \"claude\", \"continue\"). Set to \"none\" to disable auto-detection entirely. Leave empty (default) to auto-detect from IDE command history."
+        },
+        "kodela.aiDetectionWindowMs": {
+          "type": "integer",
+          "default": 60000,
+          "minimum": 0,
+          "description": "Time window (in milliseconds) within which a recently executed AI tool command is considered the active tool for annotation attribution. Default is 60 000 ms (1 minute)."
+        },
+        "kodela.minInsertionLines": {
+          "type": "integer",
+          "default": 5,
+          "minimum": 1,
+          "description": "Minimum number of lines inserted in a single event before Kodela prompts for a context annotation (Gap 20e). Increase to reduce prompts on large-but-routine changes; decrease to catch smaller AI-generated blocks. Overrides the value in kodela.config.json when set."
+        },
+        "kodela.nativeCapture.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable the native chat capture service that scrapes VS Code Copilot/Cursor state databases to enrich Kodela sessions. Disable if you only use Claude Code (or another MCP-driven AI) — the scanner will stop polling and the noisy 'no native Copilot data available yet — will retry' log lines will disappear. Requires a window reload to take effect."
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "command": "kodela.add",
+        "key": "ctrl+alt+l",
+        "mac": "cmd+alt+l",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "kodela.explain",
+        "key": "ctrl+alt+e",
+        "mac": "cmd+alt+e",
+        "when": "editorTextFocus"
+      }
+    ]
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "build": "node build.mjs",
+    "test": "TSX_TSCONFIG_PATH=./tsconfig.test.json node --import tsx --test src/storage/bridge.test.ts src/providers/hover-provider.test.ts src/providers/decoration-provider.test.ts src/providers/ai-tool-resolver.test.ts src/providers/link-status-cache.test.ts src/commands/resolve-entry.test.ts src/commands/commands.test.ts src/commands/gap19-prompts.test.ts src/chat/copilot-session-capture.test.ts src/chat/native-copilot-capture.test.ts src/views/explorer-view.test.ts src/views/control-center-view.test.ts src/workspace/ai-change-signal.test.ts src/workspace/debounce-config.test.ts src/workspace/ai-tool-attribution.test.ts src/workspace/heal-batch-engine.test.ts src/extension.smoke.test.ts src/telemetry/telemetry-service.test.ts",
+    "package": "npx @vscode/vsce package --no-dependencies"
+  },
+  "dependencies": {
+    "@kodela/core": "workspace:*",
+    "@kodela/cli": "workspace:*",
+    "@kodela/diff": "workspace:*",
+    "@kodela/watcher": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/vscode": "^1.90.0",
+    "esbuild": "^0.27.3",
+    "tsx": "catalog:"
+  }
+}

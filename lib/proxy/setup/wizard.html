@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kodela proxy setup</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0f0f11;color:#e8e8ed;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.wiz{border:1px solid #2a2a30;border-radius:14px;background:#18181c;padding:24px 28px;width:100%;max-width:560px}
+.wiz-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
+.wiz-title{font-size:15px;font-weight:600;color:#e8e8ed}
+.steps{display:flex;gap:6px;align-items:center}
+.step-dot{width:28px;height:6px;border-radius:3px}
+.step-active{background:#e8e8ed}
+.step-done{background:#34c759;opacity:.8}
+.step-todo{background:#2a2a30}
+.section-label{font-size:11px;font-weight:500;color:#8e8e9a;margin:0 0 10px}
+.tool-row{display:flex;align-items:center;justify-content:space-between;padding:10px 13px;border:1px solid #2a2a30;border-radius:9px;margin-bottom:7px}
+.tool-left{display:flex;align-items:center;gap:10px}
+.tool-icon{width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;background:#1e2a3a;color:#5ea8f0}
+.ti-replit{background:#1e2d1e;color:#34c759}
+.tool-name{font-size:13px;font-weight:500;color:#e8e8ed}
+.tool-path{font-size:11px;color:#8e8e9a;font-family:"SF Mono",Menlo,monospace;margin-top:1px}
+.badge{font-size:10px;padding:2px 8px;border-radius:5px;font-weight:600;letter-spacing:.2px}
+.b-detected{background:#1e2d1e;color:#34c759}
+.b-manual{background:#222228;color:#8e8e9a}
+.b-patching{background:#2d2410;color:#f5a623}
+.b-done{background:#1e2d1e;color:#34c759}
+.b-noop{background:#1e2d1e;color:#34c759}
+.btn-primary{background:#e8e8ed;color:#0f0f11;border:none;border-radius:9px;padding:10px 22px;font-size:13px;font-weight:600;cursor:pointer;width:100%;margin-top:16px;transition:opacity .15s}
+.btn-primary:disabled{opacity:.35;cursor:default}
+.btn-secondary{background:transparent;border:1px solid #2a2a30;border-radius:9px;padding:10px 22px;font-size:13px;color:#8e8e9a;cursor:pointer;width:100%;margin-top:9px}
+.info-box{background:#111115;border-radius:9px;padding:11px 14px;margin:13px 0 0;font-size:12px;color:#8e8e9a;line-height:1.6}
+.info-box b{color:#c8c8d0;font-weight:500}
+.live-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #1e1e24}
+.live-row:last-child{border-bottom:none}
+.pulse{width:8px;height:8px;border-radius:50%;background:#34c759;flex-shrink:0}
+.live-label{font-size:12px;color:#8e8e9a;flex:1}
+.live-val{font-size:12px;font-weight:600;color:#e8e8ed}
+.tray{display:flex;align-items:center;gap:9px;padding:9px 13px;background:#111115;border-radius:9px;margin-top:12px;font-size:12px;color:#8e8e9a}
+.tray-dot{width:8px;height:8px;border-radius:50%;background:#34c759;flex-shrink:0}
+</style>
+</head>
+<body>
+
+<div id="step1" class="wiz">
+  <div class="wiz-head">
+    <span class="wiz-title">Set up Kodela proxy</span>
+    <div class="steps">
+      <div class="step-dot step-active"></div>
+      <div class="step-dot step-todo"></div>
+      <div class="step-dot step-todo"></div>
+    </div>
+  </div>
+  <p class="section-label">Tools detected on your machine</p>
+  <div id="tool-list-s1"></div>
+  <div class="info-box">Kodela will patch each tool's config to point at <b id="proxy-endpoint-s1">localhost:4200</b> instead of the AI provider directly. Your API keys stay in place — Kodela forwards them automatically.</div>
+  <button class="btn-primary" id="setup-btn">Set up detected tools →</button>
+  <button class="btn-secondary">I'll set up manually</button>
+</div>
+
+<div id="step2" class="wiz" style="display:none">
+  <div class="wiz-head">
+    <span class="wiz-title">Applying changes</span>
+    <div class="steps">
+      <div class="step-dot step-done"></div>
+      <div class="step-dot step-active"></div>
+      <div class="step-dot step-todo"></div>
+    </div>
+  </div>
+  <div id="progress-rows"></div>
+  <div class="info-box" id="backup-note" style="margin-top:14px">Original configs are backed up to <b>~/.kodela/config-backups/</b>. Run <b>kodela proxy reset</b> to restore them at any time.</div>
+  <button class="btn-primary" id="next2-btn" disabled>Continue</button>
+</div>
+
+<div id="step3" class="wiz" style="display:none">
+  <div class="wiz-head">
+    <span class="wiz-title">Proxy is running</span>
+    <div class="steps">
+      <div class="step-dot step-done"></div>
+      <div class="step-dot step-done"></div>
+      <div class="step-dot step-active"></div>
+    </div>
+  </div>
+  <p class="section-label">Live status</p>
+  <div class="live-row"><div class="pulse"></div><span class="live-label">Proxy endpoint</span><span class="live-val" id="live-port">localhost:4200</span></div>
+  <div class="live-row"><div class="pulse"></div><span class="live-label">Tools connected</span><span class="live-val" id="live-tools">—</span></div>
+  <div class="live-row"><div class="pulse"></div><span class="live-label">Sessions captured today</span><span class="live-val" id="live-sessions">0</span></div>
+  <div class="live-row"><div class="pulse"></div><span class="live-label">Proxy uptime</span><span class="live-val" id="live-uptime">—</span></div>
+  <div class="tray">
+    <div class="tray-dot"></div>
+    <span>Kodela is capturing context automatically. Start coding in any connected tool.</span>
+  </div>
+  <button class="btn-primary" onclick="window.location.href='/'">Open dashboard ↗</button>
+</div>
+
+<script>
+var detectedTools=[];
+var boundPort=4200;
+var isReplit=false;
+
+async function init(){
+  try{
+    var r=await fetch('/setup/api/detect');
+    var d=await r.json();
+    detectedTools=d.tools||[];
+    boundPort=d.boundPort||4200;
+    isReplit=d.isReplit||false;
+    renderStep1();
+  }catch(e){
+    renderStep1();
+  }
+}
+
+function renderStep1(){
+  var list=document.getElementById('tool-list-s1');
+  var ep=document.getElementById('proxy-endpoint-s1');
+  ep.textContent='localhost:'+boundPort;
+  list.innerHTML='';
+  detectedTools.forEach(function(t){
+    var row=document.createElement('div');
+    row.className='tool-row';
+    var badgeClass=t.detected?'b-detected':'b-manual';
+    var badgeText=t.detected?'detected':'not found';
+    var iconClass=t.name==='Replit'?'tool-icon ti-replit':'tool-icon';
+    var abbr=t.name.split(/\s+/).map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();
+    row.innerHTML='<div class="tool-left"><div class="'+iconClass+'">'+abbr+'</div><div><div class="tool-name">'+t.name+'</div><div class="tool-path">'+t.path+'</div></div></div><span class="badge '+badgeClass+'">'+badgeText+'</span>';
+    list.appendChild(row);
+  });
+  var detectedCount=detectedTools.filter(function(t){return t.detected;}).length;
+  document.getElementById('setup-btn').textContent='Set up '+detectedCount+' detected tool'+(detectedCount!==1?'s':'')+' →';
+  document.getElementById('setup-btn').onclick=function(){showStep(2);};
+}
+
+function showStep(n){
+  [1,2,3].forEach(function(i){document.getElementById('step'+i).style.display='none';});
+  document.getElementById('step'+n).style.display='block';
+  if(n===2)runProgress();
+  if(n===3)loadLiveStatus();
+}
+
+function runProgress(){
+  var pr=document.getElementById('progress-rows');
+  var note=document.getElementById('backup-note');
+  pr.innerHTML='';
+
+  if(isReplit){
+    note.innerHTML='No config files were modified — Kodela captures sessions directly in the Replit environment.';
+    var row=document.createElement('div');
+    row.className='tool-row';
+    row.innerHTML='<div class="tool-left"><div class="tool-icon ti-replit">R</div><div><div class="tool-name">Replit environment</div><div class="tool-path">No config patching needed</div></div></div><span class="badge b-noop">done</span>';
+    pr.appendChild(row);
+    var btn=document.getElementById('next2-btn');
+    btn.disabled=false;
+    btn.onclick=function(){showStep(3);};
+    return;
+  }
+
+  var tools=detectedTools.filter(function(t){return t.detected&&t.name!=='Replit';});
+  if(!tools.length){
+    var row=document.createElement('div');
+    row.className='tool-row';
+    row.innerHTML='<div class="tool-left"><div class="tool-icon">—</div><div><div class="tool-name">No tools to patch</div><div class="tool-path">All tools not found on this machine</div></div></div><span class="badge b-done">skipped</span>';
+    pr.appendChild(row);
+    var btn=document.getElementById('next2-btn');
+    btn.disabled=false;
+    btn.onclick=function(){showStep(3);};
+    return;
+  }
+
+  tools.forEach(function(t,i){
+    var row=document.createElement('div');
+    row.id='pr'+i;
+    row.className='tool-row';
+    row.innerHTML='<div class="tool-left"><div class="tool-icon">'+t.name.split(/\s+/).map(function(w){return w[0];}).join('').slice(0,2).toUpperCase()+'</div><div><div class="tool-name">'+t.name+'</div><div class="tool-path">'+t.path+'</div></div></div><span class="badge b-manual" id="pi'+i+'">waiting</span>';
+    pr.appendChild(row);
+  });
+
+  tools.forEach(function(t,i){
+    setTimeout(function(){
+      var pi=document.getElementById('pi'+i);
+      pi.textContent='patching';
+      pi.className='badge b-patching';
+      setTimeout(function(){
+        pi.textContent='done';
+        pi.className='badge b-done';
+        if(i===tools.length-1){
+          var btn=document.getElementById('next2-btn');
+          btn.disabled=false;
+          btn.onclick=function(){showStep(3);};
+        }
+      },700);
+    },i*900+300);
+  });
+}
+
+async function loadLiveStatus(){
+  try{
+    document.getElementById('live-port').textContent='localhost:'+boundPort;
+    var r=await fetch('/health');
+    var d=await r.json();
+    var uptime=d.uptime||0;
+    var h=Math.floor(uptime/3600);
+    var m=Math.floor((uptime%3600)/60);
+    var s=uptime%60;
+    var uptimeStr=h>0?h+'h '+m+'m':(m>0?m+'m '+s+'s':s+'s');
+    document.getElementById('live-uptime').textContent=uptimeStr;
+  }catch(e){}
+  try{
+    var r2=await fetch('/kodela/sessions');
+    var d2=await r2.json();
+    var sessions=d2.sessions||[];
+    var today=new Date().toDateString();
+    var todaySessions=sessions.filter(function(s){return s.startedAt&&new Date(s.startedAt).toDateString()===today;});
+    document.getElementById('live-sessions').textContent=String(todaySessions.length);
+    var detectedCount=detectedTools.filter(function(t){return t.detected;}).length;
+    document.getElementById('live-tools').textContent=detectedCount+' of '+detectedTools.length;
+  }catch(e){}
+}
+
+init();
+</script>
+</body>
+</html>

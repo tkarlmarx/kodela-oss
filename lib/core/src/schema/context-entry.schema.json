@@ -1,0 +1,146 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://kodela.dev/schemas/context-entry/1.0.0",
+  "title": "ContextEntry",
+  "description": "A single context annotation attached to a region of source code. This is the core data model for Kodela. All fields are required — no field may silently hold an invalid or absent state.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "id",
+    "filePath",
+    "astAnchor",
+    "contentHash",
+    "lineRange",
+    "note",
+    "author",
+    "createdAt",
+    "updatedAt",
+    "severity",
+    "tags",
+    "source",
+    "confidence",
+    "status",
+    "reviewRequired"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.0.0",
+      "description": "Schema version. Must be '1.0.0' for this version of the schema. Readers must reject entries with unknown schema versions — never silently default."
+    },
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Stable unique identifier (UUID v4). Never changes after creation, even if the entry is moved or the file is renamed."
+    },
+    "filePath": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Repository-relative file path. Uses forward slashes regardless of OS. Never includes '..' segments."
+    },
+    "astAnchor": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "name", "blockHash"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": ["function", "method", "class", "block"],
+              "description": "The syntactic kind of the anchored AST node."
+            },
+            "name": {
+              "type": "string",
+              "description": "The name of the function, method, or class. Empty string for anonymous blocks."
+            },
+            "blockHash": {
+              "type": "string",
+              "description": "SHA-256 hash of the normalised AST node signature (name + parameter list). Used to re-locate the node after refactors."
+            }
+          }
+        },
+        {
+          "type": "null",
+          "description": "Null when AST anchoring is unavailable (e.g., non-parseable file types)."
+        }
+      ],
+      "description": "Primary location anchor. Resilient to line-number shifts caused by edits above the annotated region."
+    },
+    "contentHash": {
+      "type": "string",
+      "description": "SHA-256 hash of the normalised token stream for the annotated lines. Used as the secondary mapping layer when the AST anchor is unavailable or has changed."
+    },
+    "lineRange": {
+      "type": "object",
+      "required": ["start", "end"],
+      "additionalProperties": false,
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-indexed start line number. Used as the fallback mapping layer."
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-indexed end line number. Must be >= start."
+        }
+      }
+    },
+    "note": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The context annotation itself. Why this code was written, what decision was made, what the AI generated, etc. Required — never blank."
+    },
+    "author": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The person or system that created this entry (git username or system identifier)."
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 datetime when this entry was created. Never modified after creation."
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 datetime when this entry was last updated (e.g., after a healing operation)."
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["critical", "high", "medium", "low"],
+      "description": "Severity of the context entry. 'critical' entries block merges in enforcement mode."
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Free-form tags for filtering and search (e.g., ['ai-generated', 'auth', 'security'])."
+    },
+    "source": {
+      "type": "string",
+      "enum": ["human", "ai", "import"],
+      "description": "Origin of the annotated code. 'ai' entries with reviewRequired=true require human sign-off before a branch can merge in enforcement mode."
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Current mapping confidence score (0.0–1.0). Updated by the mapping engine on every heal operation. Never use this field without also checking 'status'."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["mapped", "uncertain", "orphaned"],
+      "description": "Derived from confidence. 'mapped' (>0.85) means the engine is confident about the code location. 'uncertain' (0.5–0.85) triggers a UI warning. 'orphaned' (<0.5) requires human review. Never silently set to 'mapped' for uncertain data."
+    },
+    "reviewRequired": {
+      "type": "boolean",
+      "description": "Explicit review flag. Set to true for AI-generated code in security-sensitive paths, or whenever a human must sign off before merging."
+    }
+  }
+}

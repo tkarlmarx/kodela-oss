@@ -1,0 +1,68 @@
+{
+  "name": "@kodela/cli",
+  "version": "0.2.0",
+  "private": false,
+  "description": "Kodela CLI — the system of record for AI-assisted development. One-line `kodela connect` wires the Kodela MCP server + silent-capture watcher into every AI coding tool.",
+  "type": "module",
+  "bin": {
+    "kodela": "./dist/bin.cjs"
+  },
+  "main": "./dist/index.cjs",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "dist/bin.cjs",
+    "dist/bin.cjs.map",
+    "dist/index.cjs",
+    "dist/index.cjs.map",
+    "dist/mcp-server.cjs",
+    "dist/mcp-server.cjs.map",
+    "README.md"
+  ],
+  "keywords": [
+    "mcp",
+    "ai",
+    "context",
+    "memory",
+    "code-context",
+    "claude",
+    "cursor",
+    "copilot",
+    "developer-tools"
+  ],
+  "homepage": "https://github.com/Rudratic-cyber/Kodela#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rudratic-cyber/Kodela.git",
+    "directory": "lib/cli"
+  },
+  "license": "AGPL-3.0-only",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "node build.mjs",
+    "test": "node --import tsx --test 'src/**/*.test.ts'",
+    "smoke": "node scripts/tarball-smoke-test.mjs",
+    "prepublishOnly": "npm run typecheck && npm run test && npm run smoke"
+  },
+  "optionalDependencies": {
+    "typescript": "^5"
+  },
+  "devDependencies": {
+    "@kodela/core": "workspace:*",
+    "@kodela/diff": "workspace:*",
+    "@kodela/embed": "workspace:*",
+    "@kodela/watcher": "workspace:*",
+    "commander": "^14.0.0",
+    "zod": "catalog:",
+    "@types/node": "catalog:",
+    "esbuild": "^0.27.3",
+    "tsx": "catalog:"
+  }
+}

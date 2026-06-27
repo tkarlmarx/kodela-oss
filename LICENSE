@@ -1,0 +1,34 @@
+Copyright (C) 2026 Kodela contributors
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, version 3 of the License.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public License for more
+details.
+
+You should have received a copy of the GNU Affero General Public License along
+with this program.  If not, see <https://www.gnu.org/licenses/agpl-3.0.html>.
+
+------------------------------------------------------------------------------
+
+DUAL-LICENSING NOTICE
+
+This repository is dual-licensed.  Most of the code (the "open core" — the
+CLI, MCP server, watcher, GitHub App, synthesis worker, and all of the
+@kodela/* core libraries) is licensed under AGPL-3.0 as above.  Selected
+commercial modules (the dashboard, the api-server, and any future SaaS-only
+artefacts) are licensed under a separate proprietary commercial licence; see
+the LICENSE.commercial file at the root of each commercial-module directory.
+
+The authoritative per-directory licence map and the dual-licensing offer
+explaining how to obtain a commercial licence for AGPL-incompatible use are
+documented in LICENSING.md at the root of this repository.
+
+The full text of the GNU Affero General Public License v3.0 is published at
+<https://www.gnu.org/licenses/agpl-3.0.txt> and is incorporated here by
+reference.  A copy of the licence text is bundled in this repository at
+docs/Business/legal/agpl-3.0.txt (added separately to keep the root LICENSE
+file readable).

@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "emitDeclarationOnly": false,
+    "noEmit": true,
+    "paths": {
+      // Replaces the real VS Code runtime with the typed mock in src/__mocks__/vscode.ts.
+      // Running `tsc -p tsconfig.test.json --noEmit` (included in `pnpm run typecheck`)
+      // catches API-shape drift between the mock and production extension sources
+      // — keeping the mock honest without requiring a full VS Code process.
+      "vscode": ["./src/__mocks__/vscode.ts"]
+    },
+    "types": ["node"]
+  }
+}

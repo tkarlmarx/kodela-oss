@@ -1,0 +1,47 @@
+{
+  "name": "@kodela/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema/index.ts",
+    "./engine": "./src/engine/index.ts",
+    "./storage": "./src/storage/index.ts",
+    "./baseline": "./src/baseline/index.ts",
+    "./sessions": "./src/sessions/index.ts",
+    "./synthesis": "./src/synthesis/index.ts",
+    "./code-graph": "./src/code-graph/index.ts",
+    "./audit": "./src/audit/index.ts",
+    "./policy": "./src/policy/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test src/schema/context-entry.schema.test.ts src/schema/session.schema.test.ts src/synthesis/queue.test.ts src/synthesis/prompt.test.ts src/engine/confidence.test.ts src/engine/scorer.test.ts src/engine/mapper.test.ts src/engine/mapping-engine.test.ts src/engine/ast-layer-treesitter.test.ts src/graph/communities.test.ts src/storage/storage.test.ts src/storage/session-storage.test.ts src/baseline/baseline.test.ts src/validation.test.ts src/env/environment.test.ts src/aggregation/aggregation.test.ts src/license/license.test.ts src/license/admin.test.ts src/semantic-search/semantic-search.test.ts src/pr-diff/pr-diff.test.ts src/staleness/staleness.test.ts src/scope/classifier.test.ts src/policy/local-policy.schema.test.ts src/reasoning/reasoning.test.ts src/reasoning/reasoning-credential-resolution.test.ts src/sessions/manager.test.ts src/handoff/index.test.ts src/rbac/rbac.test.ts src/attribution/uba-scorer.test.ts src/context-event/index.test.ts src/code-graph/treesitter-layer.test.ts src/code-graph/function-cache-store.test.ts src/code-graph/perf-bench.test.ts src/audit/hash-chain.test.ts src/audit/rtbf.test.ts src/audit/capture-denied.test.ts src/audit/encryption.test.ts src/policy/capture-policy.test.ts src/policy/secrets-scan.test.ts"
+  },
+  "dependencies": {
+    "@kodela/diff": "workspace:*",
+    "@workspace/db": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "graphology": "^0.26.0",
+    "graphology-communities-louvain": "^2.0.2",
+    "graphology-types": "^0.24.8",
+    "web-tree-sitter": "^0.26.9",
+    "yaml": "^2.8.2",
+    "zod": "catalog:"
+  },
+  "optionalDependencies": {
+    "@lumis-sh/wasm-bash": "^0.26.1",
+    "@lumis-sh/wasm-go": "^0.26.1",
+    "@lumis-sh/wasm-java": "^0.26.1",
+    "@lumis-sh/wasm-python": "^0.26.1",
+    "@lumis-sh/wasm-rust": "^0.26.3",
+    "@lumis-sh/wasm-tsx": "^0.26.1",
+    "@lumis-sh/wasm-typescript": "^0.26.1"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "catalog:"
+  },
+  "license": "AGPL-3.0-only"
+}

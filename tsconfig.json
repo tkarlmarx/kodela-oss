@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compileOnSave": false,
+  "files": [],
+  "references": [
+    { "path": "./lib/core" },
+    { "path": "./lib/cli" },
+    { "path": "./lib/vscode" },
+    { "path": "./lib/db" },
+    { "path": "./lib/watcher" },
+    { "path": "./lib/diff" },
+    { "path": "./lib/embed" },
+    { "path": "./lib/proxy" }
+  ]
+}
