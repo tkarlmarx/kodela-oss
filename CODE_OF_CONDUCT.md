@@ -2,7 +2,7 @@
 
 **Status:** Adopted 2026-06-25 for the Kodela project + organisation.
 **Applies to:** All contributors (employees, contractors, external open-source contributors), customers, and visitors to project spaces (GitHub, dashboard, docs site, public Discord/Slack, and any company-hosted event).
-**Owner:** Maintainers of the [Kodela](https://github.com/Rudratic-cyber/Kodela) repository.
+**Owner:** Maintainers of the [Kodela](https://github.com/tkarlmarx/kodela-oss) repository.
 **SOC 2 mapping:** [doc 24 §CC1.1](docs/Business/execution-plan/24-soc2-readiness-2026q3.md).
 
 ---
@@ -46,7 +46,7 @@ This Code of Conduct applies within all community spaces, and also applies when 
 Instances of abusive, harassing, or otherwise unacceptable behaviour may be reported to the project maintainers at:
 
 - **Email:** `conduct@kodela.dev` (monitored by maintainers; triaged within 2 business days)
-- **GitHub:** Open a private security advisory at https://github.com/Rudratic-cyber/Kodela/security/advisories/new if the concern involves a security risk
+- **GitHub:** Open a private security advisory at https://github.com/tkarlmarx/kodela-oss/security/advisories/new if the concern involves a security risk
 
 All complaints will be reviewed and investigated promptly and fairly. All maintainers are obligated to respect the privacy and security of the reporter of any incident.
 

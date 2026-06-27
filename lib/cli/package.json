@@ -31,11 +31,14 @@
     "copilot",
     "developer-tools"
   ],
-  "homepage": "https://github.com/Rudratic-cyber/Kodela#readme",
+  "homepage": "https://github.com/tkarlmarx/kodela-oss#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Rudratic-cyber/Kodela.git",
+    "url": "git+https://github.com/tkarlmarx/kodela-oss.git",
     "directory": "lib/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/tkarlmarx/kodela-oss/issues"
   },
   "license": "AGPL-3.0-only",
   "publishConfig": {

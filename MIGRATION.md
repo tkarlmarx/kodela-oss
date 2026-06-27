@@ -1,13 +1,13 @@
 # Kodela Community Edition — Migration Report
 
 **Generated:** 2026-06-27
-**Source (upstream, private, unchanged):** `Rudratic-cyber/Kodela`
 **Target (public):** `tkarlmarx/kodela-oss`
-**Method:** Allowlist copy into a fresh git history (no upstream history is carried,
-so no secret that ever existed in an upstream commit can leak), then surgical
-de-coupling of cloud/commercial/licensing-key code.
+**Method:** Allowlist copy from the private upstream monorepo into a fresh git
+history (no upstream history is carried, so no secret that ever existed in an
+upstream commit can leak), then surgical de-coupling of cloud/commercial/
+licensing-key code.
 
-> The upstream private repository was **not modified**. It remains the source of
+> The private upstream repository was **not modified**. It remains the source of
 > truth containing Community + Team + Cloud + Enterprise + Licensing + Billing.
 
 ---
