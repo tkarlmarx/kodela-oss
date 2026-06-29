@@ -6,6 +6,13 @@ import { findRepoRoot } from "./utils/repo.js";
 import { loadConfig, loadConfigSafe, ConfigLoadError, findConfigFile } from "./config/loader.js";
 import { DEFAULT_CONFIG } from "./config/schema.js";
 import { runInit, formatInitResult } from "./commands/init.js";
+import { runUpgrade } from "./commands/upgrade.js";
+import {
+  runActivate,
+  formatActivateResult,
+  runLicenseStatus,
+  formatLicenseStatus,
+} from "./commands/activate.js";
 import { runStatus } from "./commands/status.js";
 import { runAdd } from "./commands/add.js";
 import { runExplain, formatExplainResult } from "./commands/explain.js";
@@ -177,7 +184,7 @@ program
   )
   .option(
     "--no-encryption",
-    "Skip generating a per-repo master key (doc 27 §E.7). Use this only for plaintext local storage or SaaS deployments that inject KODELA_MASTER_KEY by env var.",
+    "Skip generating a per-repo master key (internal design note). Use this only for plaintext local storage or SaaS deployments that inject KODELA_MASTER_KEY by env var.",
   )
   .action(async (opts: { force: boolean; hooks: boolean; daemon: boolean; supervise: boolean; encryption: boolean }) => {
     const repoRoot = await findRepoRoot(process.cwd());
@@ -264,7 +271,7 @@ program
 program
   .command("rotate-key")
   .description(
-    "Rotate the per-repo master encryption key (doc 27 §E.7).\n" +
+    "Rotate the per-repo master encryption key (internal design note).\n" +
     "  Moves the current `.kodela.master-key` to `.kodela.master-key-<keyId>` (historical, " +
     "still readable for legacy envelopes) and writes a fresh 32-byte key as the new current key.\n" +
     "  Existing encrypted entries continue to decrypt via the historical file; new entries use the new key.",
@@ -2197,7 +2204,7 @@ program
 program
   .command("migrate-to-saas")
   .description(
-    "P6.5 (doc 32) — Upload local .kodela/ data to a Kodela SaaS workspace.\n" +
+    "P6.5 (internal design note) — Upload local .kodela/ data to a Kodela SaaS workspace.\n" +
     "  Walks .kodela/objects/ and .kodela/sessions/, batches each record, and POSTs to\n" +
     "  /api/migrations/local-import on the configured server.  Idempotent — re-running after\n" +
     "  a partial failure resumes via the server-side upsert path.\n" +
@@ -2782,6 +2789,89 @@ program
       process.stderr.write(
         `Error: ${err instanceof Error ? err.message : String(err)}\n`,
       );
+      process.exit(1);
+    }
+  });
+
+program
+  .command("upgrade")
+  .description(
+    "Start a self-serve paid-tier checkout (BR-MON-1). Opens a Stripe Checkout " +
+    "session (or the pricing page) in your browser with your org pre-filled.\n" +
+    "  --plan <pro|team>   Tier to purchase (default: pro).\n" +
+    "  --email <addr>      Pre-fill the billing email.\n" +
+    "  --print             Print the URL instead of opening a browser.",
+  )
+  .option("--plan <plan>", "Tier to purchase (pro | team)", "pro")
+  .option("--email <email>", "Billing email to pre-fill")
+  .option("--billing-url <url>", "Kodela billing service base URL (default: $KODELA_BILLING_URL)")
+  .option("--print", "Print the checkout URL instead of opening a browser", false)
+  .action(async (opts: { plan: string; email?: string; billingUrl?: string; print: boolean }) => {
+    const repoRoot = await findRepoRoot(process.cwd());
+    try {
+      const r = await runUpgrade({
+        repoRoot,
+        plan: opts.plan,
+        email: opts.email,
+        billingUrl: opts.billingUrl,
+        print: opts.print,
+      });
+      if (r.note) process.stderr.write(`note: ${r.note}\n`);
+      process.stdout.write(
+        `Upgrade to ${r.plan} for org ${r.orgId}:\n  ${r.url}\n` +
+          (r.opened ? "Opened in your browser.\n" : "Open the URL above to complete checkout.\n"),
+      );
+      process.exit(0);
+    } catch (err) {
+      process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command("activate")
+  .description(
+    "Install a paid license after checkout (BR-MON-6). Exchanges the activation\n" +
+    "  token from your purchase for the org's signed license and writes it to\n" +
+    "  kodela.license.json. The signature is verified offline before install.\n" +
+    "  --billing-url <url>   Kodela billing service base URL (default: $KODELA_BILLING_URL).\n" +
+    "  --print               Show what would be installed without writing the file.",
+  )
+  .argument("<token>", "Activation token from your purchase (kdl_act_…)")
+  .option("--billing-url <url>", "Kodela billing service base URL (default: $KODELA_BILLING_URL)")
+  .option("--print", "Print the resolved license without writing it to disk", false)
+  .action(async (token: string, opts: { billingUrl?: string; print: boolean }) => {
+    const repoRoot = await findRepoRoot(process.cwd());
+    try {
+      const result = await runActivate({
+        repoRoot,
+        token,
+        billingUrl: opts.billingUrl,
+        print: opts.print,
+      });
+      process.stdout.write(formatActivateResult(result) + "\n");
+      process.exit(0);
+    } catch (err) {
+      process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command("license")
+  .description(
+    "Show the current license — plan, features, expiry, and signature trust.\n" +
+    "  Read-only and offline: no network call, no billing secrets. Run after\n" +
+    "  `kodela activate` to confirm the license is installed and effective.",
+  )
+  .action(async () => {
+    const repoRoot = await findRepoRoot(process.cwd());
+    try {
+      const status = await runLicenseStatus({ repoRoot });
+      process.stdout.write(formatLicenseStatus(status) + "\n");
+      process.exit(0);
+    } catch (err) {
+      process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
       process.exit(1);
     }
   });

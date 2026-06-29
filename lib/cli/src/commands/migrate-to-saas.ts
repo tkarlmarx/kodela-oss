@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 The Kodela Authors
 /**
- * P6.5 Session 2 (doc 32 §4) — `kodela migrate to-saas`.
+ * P6.5 Session 2 (internal design note) — `kodela migrate to-saas`.
  *
  * Walks the customer's local `.kodela/objects/` (entries) and
  * `.kodela/sessions/` (sessions) and POSTs each batch via

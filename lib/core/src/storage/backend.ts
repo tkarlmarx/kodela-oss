@@ -25,7 +25,7 @@ export type BackendMetrics = {
 };
 
 /**
- * P6.5 (doc 32) widened this interface with three session methods so SaaS
+ * P6.5 (internal design note) widened this interface with three session methods so SaaS
  * mode can serve dashboard queries without the api-server walking customer
  * filesystems.  LocalBackend + CentralBackend delegate to `storage.ts`'s
  * existing filesystem helpers; SqlBackend implements them natively against

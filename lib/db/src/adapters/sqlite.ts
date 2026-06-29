@@ -1110,7 +1110,7 @@ export class SqliteStorage implements KodelaStorage {
       resolved_at: string | null;
     };
 
-    // P6.6 (doc 33) — comments.org_id is on the SQLite schema (line 314)
+    // P6.6 (internal design note) — comments.org_id is on the SQLite schema (line 314)
     // so this filter is enforceable identically to Postgres.
     let sql =
       `SELECT id, org_id, repo_id, entry_id, author, body, created_at, resolved_at ` +
@@ -1142,7 +1142,7 @@ export class SqliteStorage implements KodelaStorage {
     repoId: string,
     commentId: string,
   ): Promise<CommentRow | null> {
-    // P6.6 (doc 33) — org_id is part of the UPDATE filter on both Postgres
+    // P6.6 (internal design note) — org_id is part of the UPDATE filter on both Postgres
     // and SQLite (the column exists in both schemas).  Without it a cross-org
     // resolve would silently mutate the wrong row.
     const resolvedAt = new Date().toISOString();
@@ -1367,7 +1367,7 @@ export class SqliteStorage implements KodelaStorage {
     return Promise.resolve(results);
   }
 
-  // ── Seats / membership (doc 24 W3) ─────────────────────────────────────────
+  // ── Seats / membership (internal design note) ─────────────────────────────────────────
 
   countActiveSeats(orgId: string): Promise<number> {
     const row = this.db
@@ -1436,7 +1436,7 @@ export class SqliteStorage implements KodelaStorage {
     return Promise.resolve(row ?? null);
   }
 
-  // ── API tokens (doc 26 Phase 3) ─────────────────────────────────────────────
+  // ── API tokens (internal design note) ─────────────────────────────────────────────
 
   createApiToken(data: CreateApiTokenData): Promise<ApiTokenRow> {
     this.db.prepare("INSERT OR IGNORE INTO orgs (id) VALUES (?)").run(data.orgId);
@@ -1476,7 +1476,7 @@ export class SqliteStorage implements KodelaStorage {
     return Promise.resolve(row ? mapApiToken(row) : null);
   }
 
-  // ── Repo permissions (doc 26 Phase 3 remainder) ──────────────────────────────
+  // ── Repo permissions (internal design note) ──────────────────────────────
 
   listRepoPermissions(orgId: string, repoId: string): Promise<RepoPermissionRow[]> {
     const rows = this.db
@@ -1530,7 +1530,7 @@ export class SqliteStorage implements KodelaStorage {
     return Promise.resolve((wildcardRow?.access as RepoAccess | undefined) ?? "write");
   }
 
-  // ── Webhooks (doc 26 Phase 4) ────────────────────────────────────────────────
+  // ── Webhooks (internal design note) ────────────────────────────────────────────────
 
   listWebhooks(orgId: string): Promise<WebhookRow[]> {
     const rows = this.db

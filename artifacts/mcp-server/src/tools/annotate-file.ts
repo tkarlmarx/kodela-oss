@@ -32,7 +32,7 @@ import {
 } from "@kodela/core";
 
 import { linkEntryToSession } from "@kodela/core/sessions";
-import type { ContextEntry, EntryRow, MappingFile } from "@kodela/core";
+import type { ContextEntry, EntryRow, MappingFile, StorageBackend } from "@kodela/core";
 import type { DatabaseSync } from "node:sqlite";
 import { resolveSessionActorForAnnotate } from "../lib/resolve-actor.js";
 import { insertEdges, edgesForAnnotation } from "../lib/graph-store.js";
@@ -159,6 +159,7 @@ export async function annotateFile(
   repoRoot: string,
   input: AnnotateFileInput,
   db: DatabaseSync | null,
+  backend?: StorageBackend | null,
 ): Promise<{
   ok: boolean;
   entryId?: string;
@@ -166,6 +167,7 @@ export async function annotateFile(
   enriched: boolean;
   modifiedBy: { source: string; tool: string | null };
   error?: string;
+  remote?: { stored: boolean; mode: string; error?: string };
 }> {
   // 1. Load session to resolve actor defaults
   const session = await readSession(repoRoot, input.session_id);
@@ -185,7 +187,7 @@ export async function annotateFile(
     resolveSessionActorForAnnotate(session),
   );
 
-  // 2a. Phase 5.8.1 — capture-policy enforcement (doc 24 CC4.3 + CC6.3 + CC6.4).
+  // 2a. Phase 5.8.1 — capture-policy enforcement (internal design note).
   // Path globs and agent allow/deny are evaluated BEFORE any persistence. Denials
   // are appended to the hash-chain audit log as `capture_denied` entries so an
   // external auditor can prove the policy fired. Missing policy file → OPEN_POLICY,
@@ -299,7 +301,7 @@ export async function annotateFile(
     aiProposalNote: input.why_changed,
   });
 
-  // 6a. Phase 5.8.3 (doc 24 C1.1) — encrypt the sensitive `note` field at
+  // 6a. Phase 5.8.3 (internal design note) — encrypt the sensitive `note` field at
   // rest when KODELA_MASTER_KEY is configured. No-op when not configured so
   // existing repos see no behaviour change. decisionsReader decrypts on the
   // way out for authorized callers (RBAC gates this).
@@ -348,7 +350,7 @@ export async function annotateFile(
       // Non-fatal — file-based path is source of truth
     }
 
-    // Memory-graph edges (doc 04 path #2 + doc 07 §5 linked_decision_ids).
+    // Memory-graph edges (internal design note).
     // Own small transaction; idempotent so repeat annotate_file calls don't throw.
     try {
       insertEdges(
@@ -463,6 +465,34 @@ export async function annotateFile(
   };
 
   await writeSession(repoRoot, updatedSession);
+  // SaaS / team mode — keep the Postgres session row in sync with each
+  // annotated file (touchedFiles / filesChangedDetail) so the dashboard's
+  // session view reflects progress before close. Non-fatal on failure.
+  if (backend) {
+    try {
+      await backend.writeSession(updatedSession, repoRoot);
+    } catch {
+      // Non-fatal — session_end re-mirrors the final state.
+    }
+  }
+
+  // SaaS / team mode — dual-write the entry to Postgres `entries` (the store
+  // the dashboard reads). Keeps the local filesystem + SQLite writes as the
+  // MCP read path's source of truth while ensuring the per-file "why" reaches
+  // the team store. A remote failure is reported, never swallowed.
+  let remote: { stored: boolean; mode: string; error?: string } | undefined;
+  if (backend) {
+    try {
+      await backend.writeEntry(entry);
+      remote = { stored: true, mode: backend.mode };
+    } catch (err) {
+      remote = {
+        stored: false,
+        mode: backend.mode,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }
 
   return {
     ok: true,
@@ -470,6 +500,7 @@ export async function annotateFile(
     filePath: input.file_path,
     enriched: Boolean(input.file_content || input.diff),
     modifiedBy: { source: modifiedBy.source, tool: modifiedBy.tool },
+    ...(remote ? { remote } : {}),
   };
 }
 
@@ -524,6 +555,7 @@ export function formatAnnotateFileResponse(result: {
   enriched: boolean;
   modifiedBy: { source: string; tool: string | null };
   error?: string;
+  remote?: { stored: boolean; mode: string; error?: string };
 }): string {
   if (!result.ok) {
     return JSON.stringify({ ok: false, error: result.error, filePath: result.filePath }, null, 2);
@@ -535,6 +567,7 @@ export function formatAnnotateFileResponse(result: {
       filePath: result.filePath,
       enriched: result.enriched,
       modifiedBy: result.modifiedBy,
+      ...(result.remote ? { remote: result.remote } : {}),
       message:
         `Per-file context recorded for ${result.filePath}. ` +
         `Actor: ${result.modifiedBy.source}${result.modifiedBy.tool ? ` (${result.modifiedBy.tool})` : ""}.`,

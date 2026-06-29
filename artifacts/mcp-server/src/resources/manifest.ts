@@ -3,7 +3,7 @@
 /**
  * `kodela://manifest` resource — versioned tool/capability manifest.
  *
- * Per docs/Business/execution-plan/07-mcp-expansion.md §6, the manifest lets AI
+ * Per the project design docs §6, the manifest lets AI
  * clients discover the tool surface and feature-flag against it: it publishes
  * the server version, every registered tool with its own version + stability,
  * and the minimum client version Kodela expects per known client.

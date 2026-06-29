@@ -26,6 +26,7 @@ import {
   partitionFiles,
 } from "@kodela/core/sessions";
 import { readSession } from "@kodela/core";
+import type { StorageBackend } from "@kodela/core";
 import type { MCPContextEnvelope } from "@kodela/core/sessions";
 import { enqueueSynthesisEvent } from "@kodela/core/synthesis";
 
@@ -82,6 +83,11 @@ export interface SessionEndResult {
    * synchronously.
    */
   synthesisEventsEnqueued: number;
+  /**
+   * SaaS / team mode only — outcome of mirroring the closed session into
+   * Postgres (the store the dashboard reads). Absent in local mode.
+   */
+  remote?: { stored: boolean; mode: string; error?: string };
 }
 
 export interface SessionEndIncompleteResult {
@@ -100,6 +106,7 @@ export interface SessionEndIncompleteResult {
 export async function sessionEnd(
   repoRoot: string,
   input: SessionEndInput,
+  backend?: StorageBackend | null,
 ): Promise<SessionEndResult | SessionEndIncompleteResult> {
   const { session_id, commit_message, force = false, force_reason } = input;
 
@@ -227,6 +234,28 @@ export async function sessionEnd(
     }
   }
 
+  // SaaS / team mode — mirror the final closed session (endedAt, aggregated
+  // risk, per-file detail) into Postgres so the dashboard's session view
+  // matches what the MCP client recorded. Re-read so we persist the closed
+  // state, not the pre-close snapshot. A remote failure is surfaced on the
+  // result rather than aborting the (already-completed) local close.
+  let sessionRemote: { stored: boolean; mode: string; error?: string } | undefined;
+  if (backend) {
+    const closed = await readSession(repoRoot, session_id);
+    if (closed) {
+      try {
+        await backend.writeSession(closed, repoRoot);
+        sessionRemote = { stored: true, mode: backend.mode };
+      } catch (err) {
+        sessionRemote = {
+          stored: false,
+          mode: backend.mode,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    }
+  }
+
   // ── Build envelope ────────────────────────────────────────────────────────
   const sessionWithEntries = await getSessionEntries(repoRoot, session_id);
   if (!sessionWithEntries) {
@@ -295,6 +324,7 @@ export async function sessionEnd(
     actorBreakdown,
     outOfScopeFiles,
     synthesisEventsEnqueued,
+    ...(sessionRemote ? { remote: sessionRemote } : {}),
   };
 }
 
@@ -317,6 +347,7 @@ export function formatSessionEndResponse(
         forceOverride: result.forceOverride,
         actorBreakdown: result.actorBreakdown,
         outOfScopeFiles: result.outOfScopeFiles,
+        ...(result.remote ? { remote: result.remote } : {}),
       },
     },
     null,

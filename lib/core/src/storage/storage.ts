@@ -38,7 +38,7 @@ import { z } from "zod";
  * Fields that carry user-content-derived sensitive data on a ContextEntry.
  * Per PRIVACY.md §3.1: `note` is the high-sensitivity field (= why_changed +
  * problem_solved + ai_reasoning).  These get AES-256-GCM-encrypted at rest
- * via the file or env-var-loaded master key (doc 27 §E.7).
+ * via the file or env-var-loaded master key (internal design note).
  *
  * Encryption is a NO-OP when no master key is configured (existing repos /
  * `kodela init --no-encryption` opt-out / dev mode) — the field stays

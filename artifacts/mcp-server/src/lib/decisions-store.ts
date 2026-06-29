@@ -14,7 +14,7 @@
  *
  * MVP scope: SQLite only. The Postgres adapter parity, the lib/db
  * `KodelaStorage` interface extension, and the dashboard read path
- * are deferred — see docs/Business/execution-plan/03-decision-intelligence.md.
+ * are deferred — see the project design docs
  */
 
 import crypto from "node:crypto";
@@ -443,7 +443,7 @@ export function insertDecision(
       }
     }
 
-    // ── Memory-graph edges (doc 04 paths #8/#9) — same txn as the decision ──
+    // ── Memory-graph edges (internal design note) — same txn as the decision ──
     for (const edge of edgesForDecision({
       orgId: decisionRow.org_id,
       decisionId: id,
@@ -504,7 +504,7 @@ export interface RejectedAlternative {
 }
 
 /**
- * Rejected alternatives across all decisions (doc 06 §6.2) — the engine of the
+ * Rejected alternatives across all decisions (internal design note) — the engine of the
  * Project-DNA "avoid rejected technologies" gate. Pulls every losing option
  * (`was_chosen=0`), groups by lower-cased label, and keeps the rejection
  * reasons + the decisions that rejected it, ordered by how often it was rejected.

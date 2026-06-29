@@ -60,7 +60,7 @@ export interface SnapshotRow {
   confidenceScore: number;
 }
 
-// ── Seats / membership (doc 24 W3) ───────────────────────────────────────────
+// ── Seats / membership (internal design note) ───────────────────────────────────────────
 
 export type MemberRole = "owner" | "admin" | "member" | "viewer";
 export type MemberStatus = "invited" | "active" | "suspended";
@@ -83,7 +83,7 @@ export interface AddMemberData {
   status?: MemberStatus;
 }
 
-// ── Repo permissions (doc 26 Phase 3 remainder) ──────────────────────────────
+// ── Repo permissions (internal design note) ──────────────────────────────
 
 export type RepoAccess = "write" | "read" | "none";
 
@@ -104,7 +104,7 @@ export interface SetRepoPermissionData {
   access: RepoAccess;
 }
 
-// ── Webhooks (doc 26 Phase 4) ────────────────────────────────────────────────
+// ── Webhooks (internal design note) ────────────────────────────────────────────────
 
 export interface WebhookRow {
   id: string;
@@ -121,7 +121,7 @@ export interface CreateWebhookData {
   events: string[];
 }
 
-// ── API tokens (doc 26 Phase 3) ──────────────────────────────────────────────
+// ── API tokens (internal design note) ──────────────────────────────────────────────
 
 /** A token row as returned to the UI — never includes the hash or plaintext. */
 export interface ApiTokenRow {
@@ -235,7 +235,7 @@ export interface KodelaStorage {
 
   insertSignOffRecord(data: InsertSignOffData): Promise<SignOffRecordRow>;
   /**
-   * P6.6 (doc 33) — `orgId` is the first argument so the row-filter audit
+   * P6.6 (internal design note) — `orgId` is the first argument so the row-filter audit
    * cannot accidentally fall back to an unfiltered query.  The implementation
    * MUST include `WHERE org_id = ?` even if `repoId` already scopes the query.
    */
@@ -246,14 +246,14 @@ export interface KodelaStorage {
   ): Promise<SignOffRecordRow[]>;
 
   insertComment(data: InsertCommentData): Promise<CommentRow>;
-  /** P6.6 (doc 33) — `orgId` added; same fail-closed contract as querySignOffRecords. */
+  /** P6.6 (internal design note) — `orgId` added; same fail-closed contract as querySignOffRecords. */
   queryComments(
     orgId: string,
     repoId: string,
     entryId: string,
     includeResolved: boolean,
   ): Promise<CommentRow[]>;
-  /** P6.6 (doc 33) — `orgId` added so a cross-org UPDATE is impossible. */
+  /** P6.6 (internal design note) — `orgId` added so a cross-org UPDATE is impossible. */
   resolveDbComment(orgId: string, repoId: string, commentId: string): Promise<CommentRow | null>;
 
   insertPrComment(data: InsertPrCommentData): Promise<PrCommentRow>;
@@ -261,11 +261,11 @@ export interface KodelaStorage {
   queryPrComments(repoId: string, provider: string, prNumber: number): Promise<PrCommentRow[]>;
 
   upsertEntry(data: UpsertEntryData): Promise<void>;
-  /** P6.6 (doc 33) — `orgId` required so metrics never aggregate across tenants. */
+  /** P6.6 (internal design note) — `orgId` required so metrics never aggregate across tenants. */
   getEntryMetrics(orgId: string): Promise<EntryMetrics>;
   getAllEntries(): Promise<any[]>;
 
-  // Seats / membership (doc 24 W3). Seats are counted as ACTIVE memberships
+  // Seats / membership (internal design note). Seats are counted as ACTIVE memberships
   // per org and enforced against the org's licensed maxSeats.
   countActiveSeats(orgId: string): Promise<number>;
   addMember(data: AddMemberData): Promise<MemberRow>;
@@ -273,18 +273,18 @@ export interface KodelaStorage {
   setMemberStatus(orgId: string, userId: string, status: MemberStatus): Promise<MemberRow | null>;
   setMemberRole(orgId: string, userId: string, role: MemberRole): Promise<MemberRow | null>;
 
-  // API tokens (doc 26 Phase 3). Storage holds only the hash + prefix.
+  // API tokens (internal design note). Storage holds only the hash + prefix.
   createApiToken(data: CreateApiTokenData): Promise<ApiTokenRow>;
   listApiTokens(orgId: string): Promise<ApiTokenRow[]>;
   revokeApiToken(orgId: string, tokenId: string): Promise<ApiTokenRow | null>;
 
-  // Repo permissions (doc 26 Phase 3 remainder). Per-repo access scoping.
+  // Repo permissions (internal design note). Per-repo access scoping.
   listRepoPermissions(orgId: string, repoId: string): Promise<RepoPermissionRow[]>;
   setRepoPermission(data: SetRepoPermissionData): Promise<RepoPermissionRow>;
   deleteRepoPermission(orgId: string, repoId: string, principalId: string): Promise<boolean>;
   getEffectiveAccess(orgId: string, repoId: string, userId: string): Promise<RepoAccess>;
 
-  // Webhooks (doc 26 Phase 4). Outbound HTTP notifications for org events.
+  // Webhooks (internal design note). Outbound HTTP notifications for org events.
   listWebhooks(orgId: string): Promise<WebhookRow[]>;
   createWebhook(data: CreateWebhookData): Promise<WebhookRow>;
   deleteWebhook(orgId: string, webhookId: string): Promise<boolean>;
@@ -302,7 +302,7 @@ export interface SignOffRecordRow {
 }
 
 export interface InsertSignOffData {
-  /** P6.5 (doc 32) — multi-tenant isolation. NOT NULL on the SQL row. */
+  /** P6.5 (internal design note) — multi-tenant isolation. NOT NULL on the SQL row. */
   orgId: string;
   repoId: string;
   entryId: string;
@@ -373,7 +373,7 @@ export interface InsertPrCommentData {
 
 export interface UpsertEntryData {
   id: string;
-  /** P6.5 (doc 32) — multi-tenant isolation. NOT NULL on the SQL row. */
+  /** P6.5 (internal design note) — multi-tenant isolation. NOT NULL on the SQL row. */
   orgId: string;
   /**
    * Server-side repo identifier (FK to `repo_links.id`).  Pre-P6.5 the

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 The Kodela Authors
 /**
- * Capture-denied audit logger — Phase 5.8.1 (doc 24 CC4.3).
+ * Capture-denied audit logger — Phase 5.8.1 (internal design note).
  *
  * When `evaluateCapture` returns `allow: false`, the call site MUST append a
  * `capture_denied` entry to the hash chain so an external auditor can prove

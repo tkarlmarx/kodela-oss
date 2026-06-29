@@ -2,7 +2,7 @@
 // Copyright (C) 2026 The Kodela Authors
 /**
  * End-to-end repo-permission storage tests against the real SQLite adapter
- * (doc 26 Phase 3 remainder). Verifies upsert/list/delete/effective-access.
+ * (internal design note). Verifies upsert/list/delete/effective-access.
  */
 
 import { describe, test, before, after } from "node:test";

@@ -196,7 +196,7 @@ export async function queryForMcp(
   const scope = input.scope ?? {};
   const orgId = resolveOrgId(scope.org_id);
 
-  // ── Semantic prep (doc 22 P2): blend vector similarity when embeddings exist ──
+  // ── Semantic prep (internal design note): blend vector similarity when embeddings exist ──
   // Uses the local embedder so it works offline; only activates when the stored
   // vectors share its dimensionality (provider-generated vectors need the same
   // provider for the query, so we fall back to keyword and say so).

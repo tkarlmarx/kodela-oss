@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 The Kodela Authors
 /**
- * Field-level encryption-at-rest — Phase 5.8.3 (doc 24 C1.1).
+ * Field-level encryption-at-rest — Phase 5.8.3 (internal design note).
  *
  * AES-256-GCM authenticated encryption for sensitive ContextEntry fields.
  * Selected approach over SQLCipher / per-file encryption because:
@@ -30,8 +30,7 @@
  *      Used by SaaS-mode for KMS injection and by operators who need an
  *      explicit override.  The keyId is the first 8 hex chars of sha256(key)
  *      so a rotation can be detected without leaking the key.
- *   2. `<repoRoot>/.kodela.master-key` file — written by `kodela init` (doc 27
- *      §E.7).  This makes encryption-at-rest the default for any repo
+ *   2. `<repoRoot>/.kodela.master-key` file — written by `kodela init` (internal design note).  This makes encryption-at-rest the default for any repo
  *      onboarded with `kodela init` instead of an opt-in env var.  The file
  *      lives at REPO_ROOT (not .kodela/) so it survives RTBF wipes and is
  *      trivially gitignored.
@@ -67,7 +66,7 @@ const ENV_VAR_DEFAULT = "KODELA_MASTER_KEY";
 const ENV_VAR_PREFIX = "KODELA_MASTER_KEY_";
 
 /**
- * Phase 5.10 (doc 27 §E.7) — file-based key location.
+ * Phase 5.10 (internal design note) — file-based key location.
  *
  * `kodela init` writes a per-repo master key to `<repoRoot>/.kodela.master-key`
  * (at REPO_ROOT, not inside .kodela/, so the key survives an RTBF wipe and is

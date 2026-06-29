@@ -13,7 +13,7 @@
  *   - JSON copy persisted at .kodela/decisions/{id}.json.
  *   - No semantic embeddings, no memory-graph edge writes, no approver-count
  *     enforcement per category. All deferred to Phase 2 (see
- *     docs/Business/execution-plan/03-decision-intelligence.md).
+ *     the project design docs).
  */
 
 import { z } from "zod";
@@ -167,7 +167,7 @@ export function recordDecision(
   try {
     const storeInput: RecordDecisionInput = {
       // Resolve org at the tool boundary so the stored row carries an explicit
-      // org_id (doc 08 §1) rather than relying on a column default downstream.
+      // org_id (internal design note) rather than relying on a column default downstream.
       org_id: resolveOrgId(input.org_id),
       repo_id: input.repo_id,
       title: input.title,

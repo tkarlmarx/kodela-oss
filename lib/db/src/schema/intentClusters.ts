@@ -4,7 +4,7 @@ import { pgTable, text, integer, real, timestamp, index } from "drizzle-orm/pg-c
 import { orgsTable } from "./orgs";
 
 /**
- * P6.5 (doc 32) — `org_id` is the multi-tenant isolation column.  Every cluster
+ * P6.5 (internal design note) — `org_id` is the multi-tenant isolation column.  Every cluster
  * query through SqlBackend MUST filter on it.  Clusters are dashboard-rendered
  * groupings of entries from the same session, so org-isolation here matches
  * the entry-level invariant.

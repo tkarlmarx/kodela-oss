@@ -1,6 +1,6 @@
 {
   "name": "@kodela/cli",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": false,
   "description": "Kodela CLI — the system of record for AI-assisted development. One-line `kodela connect` wires the Kodela MCP server + silent-capture watcher into every AI coding tool.",
   "type": "module",
@@ -34,12 +34,9 @@
   "homepage": "https://github.com/tkarlmarx/kodela-oss#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tkarlmarx/kodela-oss.git",
-    "directory": "lib/cli"
+    "url": "https://github.com/tkarlmarx/kodela-oss"
   },
-  "bugs": {
-    "url": "https://github.com/tkarlmarx/kodela-oss/issues"
-  },
+  "bugs": "https://github.com/tkarlmarx/kodela-oss/issues",
   "license": "AGPL-3.0-only",
   "publishConfig": {
     "access": "public"

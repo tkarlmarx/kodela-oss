@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 The Kodela Authors
 /**
- * `kodela rotate-key` — rotate the per-repo master key (doc 27 §E.7 follow-up).
+ * `kodela rotate-key` — rotate the per-repo master key (internal design note).
  *
  * Reads the current `<repoRoot>/.kodela.master-key`, derives its keyId (the
  * same 8-hex-char sha256 prefix used by `lib/core/src/audit/encryption.ts`),

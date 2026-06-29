@@ -15,8 +15,7 @@
  *      base64-ish string that isn't already a known vendor key.  Entropy
  *      threshold avoids flagging UUIDs, hex hashes, and ordinary words.
  *
- * We deliberately do NOT use machine learning here (doc 23 §5.1 mentions an
- * ML classifier — that's a Phase 5.x follow-up). The regex+entropy combo
+ * We deliberately do NOT use machine learning here (internal design note). The regex+entropy combo
  * catches the 6 vendor prefixes in doc 23 §5.3 plus a generic floor.
  *
  * No external deps — the secrets scanner runs on every capture call so it

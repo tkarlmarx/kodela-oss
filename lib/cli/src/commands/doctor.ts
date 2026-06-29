@@ -250,7 +250,7 @@ export async function runDoctor(opts: DoctorOptions): Promise<DoctorResult> {
   const supStatus = await supervisorStatus({ repoRoot });
   checks.push(supervisorStatusToCheck(supStatus, status));
 
-  // ── 4c. Encryption-at-rest status (doc 27 §E.7) ──────────────────────────
+  // ── 4c. Encryption-at-rest status (internal design note) ──────────────────────────
   checks.push(await encryptionStatusCheck(repoRoot, env));
 
   // ── 5. AI provider key present ───────────────────────────────────────────

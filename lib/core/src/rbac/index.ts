@@ -2,7 +2,7 @@
 // Copyright (C) 2026 The Kodela Authors
 /**
  * Role-based access control (RBAC) model — the permission matrix Kodela's
- * commercial governance is built on (doc 26 Phase 3).
+ * commercial governance is built on (internal design note).
  *
  * This is the pure, dependency-free source of truth: roles, the permissions
  * they grant, and the helpers to query them. Enforcement (middleware, UI gates)

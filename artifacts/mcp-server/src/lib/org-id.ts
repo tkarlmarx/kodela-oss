@@ -9,7 +9,7 @@
  * resolution so there is exactly one place that decides what an absent org_id
  * means.
  *
- * Two modes (doc 24 W3 — retire `_default` on the authenticated path):
+ * Two modes (internal design note):
  *  - **Free / local (default):** an absent or blank org resolves to the
  *    single-tenant `_default` sentinel, so zero-config local use stays
  *    frictionless (no account, no org).

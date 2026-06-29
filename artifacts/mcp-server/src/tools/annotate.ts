@@ -39,7 +39,7 @@ import {
   SCHEMA_VERSION as CORE_SCHEMA_VERSION,
 } from "@kodela/core";
 import { linkEntryToSession } from "@kodela/core/sessions";
-import type { ContextEntry, EntryRow, MappingFile } from "@kodela/core";
+import type { ContextEntry, EntryRow, MappingFile, StorageBackend } from "@kodela/core";
 import type { DatabaseSync } from "node:sqlite";
 
 // ---------------------------------------------------------------------------
@@ -176,7 +176,13 @@ export async function annotate(
   repoRoot: string,
   input: AnnotateInput,
   db?: DatabaseSync | null,
-): Promise<{ entryId: string; filePath: string; enriched: boolean }> {
+  backend?: StorageBackend | null,
+): Promise<{
+  entryId: string;
+  filePath: string;
+  enriched: boolean;
+  remote?: { stored: boolean; mode: string; error?: string };
+}> {
   const {
     file_path,
     line_start,
@@ -327,7 +333,32 @@ export async function annotate(
     await linkEntryToSession(repoRoot, session_id, entryId, file_path);
   }
 
-  return { entryId, filePath: file_path, enriched: Boolean(file_content || diff || lines_added || lines_removed) };
+  // SaaS / team mode — dual-write the entry to the Postgres `entries` table
+  // (the store the dashboard reads). The local filesystem + SQLite writes
+  // above remain the source of truth for the MCP read path; this makes the
+  // MCP-authored "why" actually reach the team store, closing the gap where
+  // a configured DATABASE_URL was silently ignored. A remote failure is
+  // surfaced (never swallowed) so the operator knows the dashboard is stale.
+  let remote: { stored: boolean; mode: string; error?: string } | undefined;
+  if (backend) {
+    try {
+      await backend.writeEntry(entry);
+      remote = { stored: true, mode: backend.mode };
+    } catch (err) {
+      remote = {
+        stored: false,
+        mode: backend.mode,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }
+
+  return {
+    entryId,
+    filePath: file_path,
+    enriched: Boolean(file_content || diff || lines_added || lines_removed),
+    ...(remote ? { remote } : {}),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -338,6 +369,7 @@ export function formatAnnotateResponse(result: {
   entryId: string;
   filePath: string;
   enriched: boolean;
+  remote?: { stored: boolean; mode: string; error?: string };
 }): string {
   return JSON.stringify(
     {
@@ -345,6 +377,7 @@ export function formatAnnotateResponse(result: {
       entryId: result.entryId,
       filePath: result.filePath,
       enriched: result.enriched,
+      ...(result.remote ? { remote: result.remote } : {}),
       message: result.enriched
         ? `Annotation written with extractionMethod: "mcp", trustLevel: "high", full enrichment applied`
         : `Annotation written with extractionMethod: "mcp", trustLevel: "high"`,

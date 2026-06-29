@@ -8,7 +8,7 @@ import { usersTable } from "./users";
 
 /**
  * Org membership — the join between users and orgs, and the unit a seat is
- * counted against (doc 24 W3).
+ * counted against (internal design note).
  *
  * Seat counting: COUNT(*) WHERE org_id = ? AND status = 'active'. The seat cap
  * comes from the org's signed license (`maxSeats`). Enforced server-side in

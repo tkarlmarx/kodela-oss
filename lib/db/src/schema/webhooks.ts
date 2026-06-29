@@ -4,7 +4,7 @@ import { pgTable, uuid, text, boolean, timestamp, index } from "drizzle-orm/pg-c
 import { orgsTable } from "./orgs";
 
 /**
- * Outbound webhooks (doc 26 Phase 4) — HTTP endpoints that Kodela posts events
+ * Outbound webhooks (internal design note) — HTTP endpoints that Kodela posts events
  * to when context is captured, sessions complete, or PRs are blocked.
  *
  * `events` is stored as a JSON-encoded string array (Postgres text column so

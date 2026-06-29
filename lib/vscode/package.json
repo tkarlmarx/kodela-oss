@@ -9,7 +9,9 @@
     "vscode": "^1.90.0",
     "node": ">=20"
   },
-  "categories": ["Other"],
+  "categories": [
+    "Other"
+  ],
   "activationEvents": [
     "onStartupFinished",
     "workspaceContains:**/.kodela",
@@ -365,5 +367,11 @@
     "@types/vscode": "^1.90.0",
     "esbuild": "^0.27.3",
     "tsx": "catalog:"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tkarlmarx/kodela-oss"
+  },
+  "homepage": "https://github.com/tkarlmarx/kodela-oss#readme",
+  "bugs": "https://github.com/tkarlmarx/kodela-oss/issues"
 }

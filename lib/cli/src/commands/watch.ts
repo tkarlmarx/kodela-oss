@@ -332,17 +332,19 @@ export async function runWatch(
     // synthesis is paused until the next watcher restart).
     void (async () => {
       try {
-        // Optional in the Community Edition: the managed synthesis worker is a
-        // commercial package. Resolve via a computed specifier so the build does
-        // not require it; if absent at runtime the catch below logs and skips.
-        const spec = ["@workspace", "synthesis-worker"].join("/");
-        const mod = (await import(/* @vite-ignore */ spec)) as {
-          runWorker: (repoRoot: string, opts: { pollIntervalMs: number }) => Promise<void>;
+        // @workspace/synthesis-worker is an enterprise-only package, absent in
+        // the Community Edition build. Keep the specifier opaque to tsc and the
+        // bundler (typed `string`, not a literal) so CE compiles and bundles;
+        // the env gate above and this try/catch handle it being missing at
+        // runtime (CE logs "Synthesis sidecar failed" and the watcher continues).
+        const synthesisWorkerPkg: string = "@workspace/synthesis-worker";
+        const { runWorker } = (await import(synthesisWorkerPkg)) as {
+          runWorker: (root: string, opts: { pollIntervalMs: number }) => Promise<void>;
         };
-        await mod.runWorker(repoRoot, { pollIntervalMs: pollMs });
+        await runWorker(repoRoot, { pollIntervalMs: pollMs });
       } catch (err) {
         stdout.write(
-          `[watch] Synthesis sidecar unavailable: ${err instanceof Error ? err.message : String(err)}\n`,
+          `[watch] Synthesis sidecar failed: ${err instanceof Error ? err.message : String(err)}\n`,
         );
       }
     })();

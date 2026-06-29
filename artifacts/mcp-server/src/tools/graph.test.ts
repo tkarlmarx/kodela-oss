@@ -137,7 +137,7 @@ describe("memory graph — real ingestion path", () => {
     assert.equal(hit!.evidence_chain![0].edge_type, "IMPLEMENTS");
   });
 
-  test("get_context fuses the file's decisions (doc 22 P2 — one call = code + why)", () => {
+  test("get_context fuses the file's decisions (internal design note)", () => {
     const env = getContextV4(tmpRepo, { file_path: FILE, token_budget: 4000 }, db);
     assert.ok(env.context.decisions, "expected fused decisions on the context envelope");
     const hit = env.context.decisions!.find((d) => d.decision_id === decisionId);

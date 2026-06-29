@@ -6,7 +6,7 @@ import { z } from "zod/v4";
 import { orgsTable } from "./orgs";
 
 /**
- * API tokens (doc 26 Phase 3) — machine credentials for CI / scripts hitting
+ * API tokens (internal design note) — machine credentials for CI / scripts hitting
  * the Kodela API, separate from the per-license `apiSecret`.
  *
  * Security: we store ONLY a SHA-256 hash of the token, plus a short prefix for

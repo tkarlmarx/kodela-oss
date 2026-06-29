@@ -4,7 +4,7 @@ import { pgTable, uuid, text, timestamp, index, unique } from "drizzle-orm/pg-co
 import { orgsTable } from "./orgs";
 
 /**
- * Per-repo access grants (doc 26 Phase 3 remainder).
+ * Per-repo access grants (internal design note).
  *
  * Without a row here a member inherits org-level access (role determines what
  * they can read/write). A row with `access: "none"` explicitly blocks a member

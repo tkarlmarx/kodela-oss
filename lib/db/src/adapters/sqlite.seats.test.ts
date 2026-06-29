@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 The Kodela Authors
 /**
- * End-to-end seat enforcement against the real SQLite adapter (doc 24 W3).
+ * End-to-end seat enforcement against the real SQLite adapter (internal design note).
  *
  * This runs against an actual node:sqlite database — no mocks — so it verifies
  * the users/memberships schema, seat counting, and the canAddSeat policy

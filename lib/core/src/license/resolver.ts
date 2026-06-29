@@ -10,7 +10,7 @@ export const LICENSE_FILE_NAME = "kodela.license.json";
 /**
  * Env var that flips signature enforcement on.
  *
- * Rollout (doc 24 W2): ships default-OFF for one release (warn-only — unsigned
+ * Rollout (internal design note): ships default-OFF for one release (warn-only — unsigned
  * licenses still work so existing customers aren't bricked), then defaults ON.
  * Accepts "1" or "true" (case-insensitive).
  */

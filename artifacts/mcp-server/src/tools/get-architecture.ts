@@ -4,7 +4,7 @@
  * `kodela_get_architecture` MCP tool (07 §3.11) — Project DNA scoped to the
  * Technical block only.
  *
- * Seed-first (doc 06 §13): the technical block comes from `.kodela/dna/project.json`
+ * Seed-first (internal design note): the technical block comes from `.kodela/dna/project.json`
  * augmented with unambiguous facts (package manager, source modules). We do NOT
  * infer frameworks from dependencies. `detail_level` controls verbosity.
  */

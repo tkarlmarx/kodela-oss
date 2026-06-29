@@ -1,25 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 The Kodela Authors
 /**
- * Project DNA synthesizer (doc 06) — MVP.
+ * Project DNA synthesizer (internal design note) — MVP.
  *
  * Deterministic, compute-on-read. We do NOT build the doc 05 L1–L4 LLM
  * compression pipeline (Postgres `project_dna`/`file_rollups` tables, abstractive
  * Pass-2) — those are roadmap. Over a repo's handful of decisions + a small
  * graph, synthesizing on read is always-fresh and needs no distillation model.
  *
- * What powers the headline ≥90% "avoid rejected technologies" gate (doc 06 §15):
+ * What powers the headline ≥90% "avoid rejected technologies" gate (internal design note):
  *   - rejected_alternatives — every losing decision option (`was_chosen=0`) with
  *     its rejection reason and the decisions that rejected it.
  *   - recent/active decisions and load-bearing decisions (by IMPLEMENTS-edge count).
  *
- * Business/Technical DNA is **seed-first** (doc 06 §13 mandates hand-writing it):
+ * Business/Technical DNA is **seed-first** (internal design note):
  * read `.kodela/dna/project.json`. We only augment with unambiguous deterministic
  * facts (package manager from lockfile, source modules from top-level dirs). We do
  * NOT build a dependency→framework classifier.
  *
- * Integrity gate (doc 06 §13 — "don't ship a DNA that disagrees with active
- * decisions"): seeded claims (stack tokens, key_constraints) are cross-checked
+ * Integrity gate (internal design note): seeded claims (stack tokens, key_constraints) are cross-checked
  * against rejected_alternatives; a claim that names a rejected alternative is
  * dropped from the payload and reported in `meta.warnings`.
  */
@@ -43,7 +42,7 @@ export interface DnaSeed {
   stack?: string | string[];
   non_goals?: string[];
   key_constraints?: string[];
-  /** Verbatim Technical DNA block (doc 06 §3) — passed through to get_architecture. */
+  /** Verbatim Technical DNA block (internal design note) — passed through to get_architecture. */
   technical?: Record<string, unknown>;
 }
 
@@ -150,7 +149,7 @@ export function buildProjectDna(
     .filter((x) => x.implements_count > 0)
     .sort((a, b) => b.implements_count - a.implements_count);
 
-  // ── Seed-derived identity + integrity check (doc 06 §13) ───────────────────
+  // ── Seed-derived identity + integrity check (internal design note) ───────────────────
   const project = seed?.project ?? path.basename(repoRoot);
   const purpose = seed?.purpose ?? null;
   const nonGoals = seed?.non_goals ?? [];
@@ -196,7 +195,7 @@ export function buildProjectDna(
 
   // ── Confidence (deterministic — reflects how much real data backs the DNA) ──
   let confidence = 0.3;
-  if (seed) confidence += 0.3;            // hand-seeded Business DNA (doc 06 §13 mandates it)
+  if (seed) confidence += 0.3;            // hand-seeded Business DNA (internal design note)
   if (active.length > 0) confidence += 0.2;
   if (rejected.length > 0) confidence += 0.2;
   confidence = Math.min(1, Number(confidence.toFixed(2)));
@@ -242,7 +241,7 @@ export function buildProjectDna(
   const meta: DnaMeta = {
     tokens_estimated: estimateTokens(payload),
     layers_consulted: layers,
-    // Compute-on-read ⇒ always fresh; staleness machinery (doc 05) is roadmap.
+    // Compute-on-read ⇒ always fresh; staleness machinery (internal design note) is roadmap.
     freshness: { mode: "compute-on-read", refreshed_at: refreshedAt },
     confidence,
     refreshed_at: refreshedAt,

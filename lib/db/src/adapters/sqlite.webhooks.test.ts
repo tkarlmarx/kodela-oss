@@ -2,7 +2,7 @@
 // Copyright (C) 2026 The Kodela Authors
 /**
  * End-to-end webhook storage tests against the real SQLite adapter
- * (doc 26 Phase 4). Verifies create/list/delete and event serialisation.
+ * (internal design note). Verifies create/list/delete and event serialisation.
  */
 
 import { describe, test, before, after } from "node:test";

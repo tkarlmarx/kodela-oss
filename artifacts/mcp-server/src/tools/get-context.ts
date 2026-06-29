@@ -196,7 +196,7 @@ export const GetContextV4InputSchema = z.object({
   as_of: z
     .string()
     .optional()
-    .describe("ISO timestamp — fuse only decisions valid as of this point in time (doc 22 P3 temporal)"),
+    .describe("ISO timestamp — fuse only decisions valid as of this point in time (internal design note)"),
 });
 
 export type GetContextV4Input = z.infer<typeof GetContextV4InputSchema>;
@@ -225,7 +225,7 @@ export type McpEntry = {
 
 /**
  * A decision that shaped the queried file, fused in from the memory graph
- * (doc 22 P2). Lets an agent get code context AND the "why" in one call.
+ * (internal design note). Lets an agent get code context AND the "why" in one call.
  */
 export type WhyDecision = {
   decision_id: string;
@@ -310,7 +310,7 @@ export function formatMcpResponse(
 }
 
 /**
- * Fuse the decisions that shaped a file into a context envelope (doc 22 P2).
+ * Fuse the decisions that shaped a file into a context envelope (internal design note).
  * Reuses the get_why graph traversal so one get_context call returns code +
  * why. No-op when there's no file or no decision links.
  */
@@ -344,8 +344,7 @@ function fuseDecisions(
 }
 
 /**
- * Surface mapping staleness on the V4 envelope entries (doc 22 P2 — drift-aware
- * retrieval by default). ClusterEntrySummary drops status, so we look it up from
+ * Surface mapping staleness on the V4 envelope entries (internal design note). ClusterEntrySummary drops status, so we look it up from
  * the index (cheap: a few file-scoped queries) and tag orphaned/uncertain
  * entries so the agent never silently trusts stale context.
  */

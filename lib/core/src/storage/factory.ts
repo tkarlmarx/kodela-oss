@@ -28,7 +28,7 @@ let _singleton: StorageBackend | null = null;
 
 /**
  * Resolve the storage mode.  Explicit `opts.mode` wins; otherwise read the
- * `KODELA_DEPLOYMENT_MODE` env var (doc 28 §3.4); default `"local"`.
+ * `KODELA_DEPLOYMENT_MODE` env var (internal design note); default `"local"`.
  */
 function resolveMode(opts: StorageFactoryOptions): StorageMode {
   if (opts.mode) return opts.mode;
@@ -49,7 +49,7 @@ export function createStorageBackend(opts: StorageFactoryOptions = {}): StorageB
     throw new Error(
       "createStorageBackend (sync) does not support mode='saas' — " +
         "use createStorageBackendAsync(opts) instead.  The sync factory is " +
-        "for the CLI/local path which never reaches SaaS mode (doc 28 §3.4).",
+        "for the CLI/local path which never reaches SaaS mode (internal design note).",
     );
   }
 

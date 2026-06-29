@@ -16,7 +16,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { startSession, updateSessionGoal } from "@kodela/core/sessions";
 import { readSession, writeSession, listSessions } from "@kodela/core";
-import type { KodelaSession } from "@kodela/core";
+import type { KodelaSession, StorageBackend } from "@kodela/core";
 import { resolveActorFromEnv } from "../lib/resolve-actor.js";
 
 /**
@@ -150,6 +150,7 @@ function captureGitBaseline(repoRoot: string): GitBaseline {
 export async function sessionStart(
   repoRoot: string,
   input: SessionStartInput,
+  backend?: StorageBackend | null,
 ): Promise<SessionStartResult> {
   // Reject hook/system boilerplate as a session goal (A3 server-side guard).
   // Without this, every stop-hook reminder / system-reminder prompt spawns its
@@ -222,6 +223,17 @@ export async function sessionStart(
       isGitRepo: gitBaseline.isGitRepo,
     };
     await writeSession(repoRoot, withActorAndBaseline);
+    // SaaS / team mode — mirror the new session into Postgres so the
+    // dashboard's session list reflects MCP-started sessions. Local FS write
+    // above stays the source of truth; a remote failure must not abort
+    // session start, so it is swallowed (the session_end mirror will retry).
+    if (backend) {
+      try {
+        await backend.writeSession(withActorAndBaseline, repoRoot);
+      } catch {
+        // Non-fatal — session_end re-mirrors the final state.
+      }
+    }
   }
 
   if (session.goal !== input.user_prompt) {

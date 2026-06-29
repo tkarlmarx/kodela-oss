@@ -49,7 +49,7 @@ export class LocalStorageBackend implements StorageBackend {
     };
   }
 
-  // P6.5 (doc 32 §3.3 Q3) — session methods delegate to storage.ts's existing
+  // P6.5 (internal design note) — session methods delegate to storage.ts's existing
   // filesystem helpers.  Keeping LocalBackend lean here means existing
   // storage.ts callers continue to work without going through the backend.
   async writeSession(session: KodelaSession, repoRoot: string): Promise<void> {

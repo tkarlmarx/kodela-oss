@@ -5,7 +5,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 /**
- * Users — the people who hold seats (doc 24 W3, doc 21 blocker #2).
+ * Users — the people who hold seats (internal design note).
  *
  * Until this table existed the product was single-tenant with no notion of a
  * user, so "$29/seat" was sold but uncounted. A user can belong to multiple

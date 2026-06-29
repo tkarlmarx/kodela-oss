@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 The Kodela Authors
 /**
- * Phase 3 of docs/Business/execution-plan/23-catch-up-implementation-plan-2026q3.md.
+ * Phase 3 of the project design docs
  *
  * Pins the bitemporal contract on graph_edges: idempotent migration,
  * valid_from backfill on legacy rows, the (valid_from, valid_until)

@@ -146,7 +146,7 @@ export const FileChangeContextSchema = z.object({
    *
    * The dashboard renders synthesized annotations with a `draft` visual treatment
    * (dashed border + categorical confidence chip) until a reviewer promotes them.
-   * See docs/Business/execution-plan/23-catch-up-implementation-plan-2026q3.md §Phase 1.
+   * See the project design docs §Phase 1.
    */
   provenance: z.enum(["agent-authored", "synthesized", "human-authored"]).default("agent-authored"),
 
@@ -314,7 +314,7 @@ export const KodelaSessionSchema = z.object({
    * to legacy behavior (full git diff is enforced) for backward compat with
    * sessions written before this field existed.
    *
-   * See docs/Business/execution-plan/13-universal-capture-governance.md §3
+   * See the project design docs §3
    * and §4 Pillar A.
    */
   touchedFiles: z.array(z.string()).optional(),

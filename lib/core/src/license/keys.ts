@@ -13,7 +13,7 @@
  * Key format: base64-encoded SPKI DER (what
  * `crypto.createPublicKey(...).export({ type: "spki", format: "der" })`
  * produces). See `scripts/licensing/gen-license-keypair.mjs` to mint a new
- * keypair and `docs/Business/licensing/ISSUING-LICENSES.md` for the operator
+ * keypair and `the project design docs` for the operator
  * runbook.
  */
 

@@ -3,7 +3,7 @@
 /**
  * Synthesis prompt template v1.
  *
- * Phase 2 of docs/Business/execution-plan/23-catch-up-implementation-plan-2026q3.md.
+ * Phase 2 of the project design docs
  *
  * The worker asks the model to produce a four-field JSON object that maps
  * directly onto FileChangeContext: whyChanged, problemSolved, aiReasoning,

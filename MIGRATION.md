@@ -40,7 +40,7 @@ licensing-key code.
 | Hosted services | `artifacts/synthesis-worker/`, `artifacts/github-app/` | Managed/hosted paid surfaces |
 | Production keys | `lib/core/src/license/keys.ts` production signing keys, `scripts/licensing/{gen-keypair,sign-license}` | Licensing key material / signing |
 | Secrets & licenses | `.env*`, `kodela.license.json`, `mock-licenses/` | Secrets / license artifacts |
-| Confidential docs | `strategy/` (16 docs), `docs/Business/` | Pricing, revenue, competitive analysis, compliance, business plan |
+| Confidential docs | `strategy/` (16 docs), `the project design docs/` | Pricing, revenue, competitive analysis, compliance, business plan |
 | Internal/host config | `.replit`, `replit.md`, `.kiro/`, `.cursor/`, `attached_assets/` | Internal/dev-host scratch |
 
 ---
@@ -60,7 +60,7 @@ licensing-key code.
 
 - ✅ No private-key material, no license private-key env var, and no production signing key-id anywhere in the tree.
 - ✅ No `.env`, `kodela.license.json`, or `mock-licenses/`.
-- ✅ No `dashboard`, `api-server`, `api-client-react`, `api-zod`, `api-spec`, `synthesis-worker`, `github-app`, `strategy/`, or `docs/Business/`.
+- ✅ No `dashboard`, `api-server`, `api-client-react`, `api-zod`, `api-spec`, `synthesis-worker`, `github-app`, `strategy/`, or `the project design docs/`.
 - ✅ No Postgres / `node-postgres` imports remain.
 - ℹ️ The only files matching secret-like patterns are `lib/core/src/policy/secrets-scan.ts(.test.ts)` — that is the secret **detector** feature, not a secret.
 

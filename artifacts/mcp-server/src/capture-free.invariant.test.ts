@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 The Kodela Authors
 /**
- * Invariant: MCP capture is FREE by design (doc 21 §4 blocker #4, doc 24 W4).
+ * Invariant: MCP capture is FREE by design (internal design note).
  *
  * The capture/annotation/decision/graph MCP tools must never be gated behind a
  * license — capture is what builds the data moat, so it stays free. Monetization

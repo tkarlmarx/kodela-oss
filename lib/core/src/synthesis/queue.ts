@@ -3,7 +3,7 @@
 /**
  * Synthesis queue — durable, file-backed.
  *
- * Phase 2 of docs/Business/execution-plan/23-catch-up-implementation-plan-2026q3.md.
+ * Phase 2 of the project design docs
  *
  * Each event is one (sessionId, filePath) the worker should synthesize a
  * `why_changed / problem_solved / ai_reasoning` triple for. Events live as

@@ -4,7 +4,7 @@ import { pgTable, text, real, integer, timestamp, index } from "drizzle-orm/pg-c
 import { orgsTable } from "./orgs";
 
 /**
- * P6.5 (doc 32) — `org_id` is the multi-tenant isolation column.  Every read
+ * P6.5 (internal design note) — `org_id` is the multi-tenant isolation column.  Every read
  * through `SqlBackend` MUST filter on `org_id` so a request authenticated as
  * org A cannot read entries belonging to org B.  The P6.6 row-filter audit
  * (next item in doc 27) walks every Drizzle query in `lib/core` + `api-server`

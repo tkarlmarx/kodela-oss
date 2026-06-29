@@ -3,7 +3,7 @@
 /**
  * Code-graph parser types.
  *
- * Phase 4 of docs/Business/execution-plan/23-catch-up-implementation-plan-2026q3.md.
+ * Phase 4 of the project design docs
  *
  * `parseFunctions` returns a list of function-like declarations a Tree-sitter
  * grammar found in a single source file. The shape is deliberately small and

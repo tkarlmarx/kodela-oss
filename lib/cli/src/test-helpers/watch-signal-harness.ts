@@ -30,4 +30,9 @@ const shutdown = () => {
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
 
-process.stdout.write("harness:ready\n");
+// Signal readiness on the next event-loop turn, not synchronously. Adding the
+// first signal listener arms libuv's signal watcher, but the test sends SIGTERM
+// the instant it reads "harness:ready"; emitting on a setImmediate guarantees
+// the watcher is fully active before the parent can deliver the signal, so the
+// handler runs (exit 0) instead of the process dying from the default action.
+setImmediate(() => process.stdout.write("harness:ready\n"));

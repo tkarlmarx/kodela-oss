@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 The Kodela Authors
 /**
- * Seat-limit policy (doc 24 W3, doc 21 blocker #2).
+ * Seat-limit policy (internal design note).
  *
  * Pure decision logic, separated from the DB count and the HTTP layer so it can
  * be unit-tested exhaustively. The server counts active members for an org and

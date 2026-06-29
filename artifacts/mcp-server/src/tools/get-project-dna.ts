@@ -6,7 +6,7 @@
  * Returns a compressed, structured "identity" of the project (purpose, stack,
  * constraints, non-goals, recent decisions, and — critically — the list of
  * rejected alternatives) so an AI agent avoids project-rejected technologies
- * (doc 06 §15, the ≥90% gate). MVP is deterministic compute-on-read.
+ * (internal design note). MVP is deterministic compute-on-read.
  *
  * Scope: `project` only in this MVP. `module`/`file` scopes require the doc-05
  * L2/L3 rollups (roadmap); they currently return project-level DNA with a note.

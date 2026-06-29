@@ -7,7 +7,7 @@
  *
  * MVP scope: id-only lookup. Faceted search and semantic similarity ship in
  * Phase 2 via `kodela_search_decisions` and `kodela_find_similar_decisions`
- * (see docs/Business/execution-plan/03-decision-intelligence.md).
+ * (see the project design docs).
  */
 
 import { z } from "zod";

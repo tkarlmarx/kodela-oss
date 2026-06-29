@@ -1,0 +1,82 @@
+# Publish @kodela/cli to npm — FROM THE PUBLIC COMMUNITY REPO (kodela-oss).
+#
+# This is the canonical publish path. @kodela/cli is a Community-Edition package,
+# so it is published from the public repo (this one) — NOT from the private
+# enterprise monorepo — for two reasons:
+#   1. npm PROVENANCE links the package to a source repo + commit the public can
+#      inspect. Publishing from a private repo produces provenance no one can
+#      verify, defeating the point.
+#   2. This repo is the export-sanitized, leak-scanned Community subset, so the
+#      published tarball is guaranteed to contain only public code.
+#
+# Release flow (see the enterprise repo's release runbook):
+#   1. Bump lib/cli/package.json#version in the PRIVATE repo (source of truth).
+#   2. `kodela export community` pushes the CE subset (incl. the bumped version)
+#      to this repo.
+#   3. Here, tag `cli-v<version>` (must match package.json) and push it.
+#   4. This workflow runs the gate + `npm publish --provenance --access public`.
+#
+# Required GitHub secret (in THIS repo): NPM_TOKEN — an npm granular token with
+# read/write on the @kodela scope.
+
+name: cli-publish
+
+on:
+  push:
+    tags:
+      - "cli-v*"
+
+permissions:
+  contents: read
+  id-token: write # required for npm provenance
+
+concurrency:
+  group: cli-publish-${{ github.ref }}
+  cancel-in-progress: false # never cancel a publish mid-flight
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: "https://registry.npmjs.org"
+          always-auth: true
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck (whole workspace)
+        run: pnpm run typecheck
+      - name: Test @kodela/cli
+        run: pnpm --filter @kodela/cli run test
+      - name: Tarball smoke test (build + pack + install + bin)
+        run: pnpm --filter @kodela/cli run smoke
+
+      - name: Verify git tag matches CLI version
+        run: |
+          PKG_VERSION=$(node -p "require('./lib/cli/package.json').version")
+          TAG_VERSION="${GITHUB_REF_NAME#cli-v}"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::Tag is cli-v$TAG_VERSION but package.json declares $PKG_VERSION."
+            exit 1
+          fi
+          echo "Version OK: $PKG_VERSION"
+
+      - name: Publish to npm (with provenance)
+        run: |
+          cd lib/cli
+          npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Summarise
+        run: |
+          PKG_VERSION=$(node -p "require('./lib/cli/package.json').version")
+          echo "### Published \`@kodela/cli@${PKG_VERSION}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- https://www.npmjs.com/package/@kodela/cli/v/${PKG_VERSION}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`npx -y @kodela/cli@${PKG_VERSION} connect --apply --npx\`" >> "$GITHUB_STEP_SUMMARY"

@@ -6,7 +6,7 @@
  * Walks every entry in the index, embeds its note, and writes the vectors to
  * `.kodela/embeddings.jsonl` (re-embedding only changed notes). This is what
  * makes semantic / hybrid retrieval light up in `kodela search --semantic` and
- * the MCP `kodela_query` tool (doc 22 P2).
+ * the MCP `kodela_query` tool (internal design note).
  *
  * Engine selection (E.5) is delegated to `@kodela/embed`'s registry, driven by
  * `KODELA_EMBEDDING_PROVIDER` (auto | local-onnx | local-hash | openai). The

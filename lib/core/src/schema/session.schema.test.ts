@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 The Kodela Authors
 /**
- * Phase 1 of docs/Business/execution-plan/23-catch-up-implementation-plan-2026q3.md.
+ * Phase 1 of the project design docs
  *
  * Pins the contract of the new `provenance` / `synthesisTemplateVersion` /
  * `supersededByEntryId` fields on FileChangeContext so future regressions get

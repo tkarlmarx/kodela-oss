@@ -42,6 +42,7 @@ export { CentralStorageBackend } from "./central-backend.js";
 export type { CentralBackendConfig } from "./central-backend.js";
 export {
   createStorageBackend,
+  createStorageBackendAsync,
   getStorageBackend,
   resetStorageBackend,
 } from "./factory.js";

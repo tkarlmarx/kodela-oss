@@ -117,6 +117,7 @@ import { ensureGraphTables } from "./lib/graph-store.js";
 import { closeIdleSessions, DEFAULT_IDLE_THRESHOLD_MS } from "./lib/idle-close.js";
 import { resolveFileContextResource } from "./resources/file-context.js";
 import { buildManifest } from "./resources/manifest.js";
+import { initDeploymentStorage } from "./lib/deployment-storage.js";
 
 const SERVER_NAME = "kodela" as const;
 const SERVER_VERSION = "0.1.0" as const;
@@ -129,6 +130,25 @@ const server = new McpServer({
 });
 
 async function main(): Promise<void> {
+  // ── Deployment-aware storage (team/SaaS Postgres routing) ─────────────────
+  // Resolve the deployment mode so the MCP write path matches where the
+  // dashboard reads. In `saas` mode this returns a Postgres-backed
+  // StorageBackend that the annotate tools dual-write to; in local mode it is
+  // null and behaviour is unchanged. Fails loud on a misconfigured saas mode
+  // rather than silently writing only to local SQLite.
+  const deployment = await initDeploymentStorage(repoRoot);
+  const backend = deployment.backend;
+  for (const w of deployment.warnings) {
+    process.stderr.write(`[kodela-mcp] warning: ${w}\n`);
+  }
+  if (backend) {
+    process.stderr.write(
+      `[kodela-mcp] deployment mode: ${deployment.mode} — context entries ` +
+        `dual-written to Postgres (org ${deployment.tenant?.orgId}, repo ` +
+        `${deployment.tenant?.repoId})\n`,
+    );
+  }
+
   // ── Phase E: warm in-memory cache ─────────────────────────────────────────
   const cache = await createEntryCache(repoRoot);
 
@@ -430,7 +450,7 @@ async function main(): Promise<void> {
     async (input) => {
       try {
         const parsed = AnnotateInputSchema.parse(input);
-        const result = await annotate(repoRoot, parsed, db);
+        const result = await annotate(repoRoot, parsed, db, backend);
         return {
           content: [{ type: "text", text: formatAnnotateResponse(result) }],
         };
@@ -492,7 +512,7 @@ async function main(): Promise<void> {
     async (input) => {
       try {
         const parsed = AnnotateFileInputSchema.parse(input);
-        const result = await annotateFile(repoRoot, parsed, db);
+        const result = await annotateFile(repoRoot, parsed, db, backend);
         return {
           content: [{ type: "text", text: formatAnnotateFileResponse(result) }],
           isError: !result.ok,
@@ -534,7 +554,7 @@ async function main(): Promise<void> {
     async (input) => {
       try {
         const parsed = SessionStartInputSchema.parse(input);
-        const result = await sessionStart(repoRoot, parsed);
+        const result = await sessionStart(repoRoot, parsed, backend);
         return { content: [{ type: "text", text: formatSessionStartResponse(result) }] };
       } catch (err) {
         return {
@@ -571,7 +591,7 @@ async function main(): Promise<void> {
     async (input) => {
       try {
         const parsed = SessionEndInputSchema.parse(input);
-        const result = await sessionEnd(repoRoot, parsed);
+        const result = await sessionEnd(repoRoot, parsed, backend);
         return { content: [{ type: "text", text: formatSessionEndResponse(result) }] };
       } catch (err) {
         return {

@@ -4,7 +4,7 @@ import { pgTable, text, timestamp, index } from "drizzle-orm/pg-core";
 import { orgsTable } from "./orgs";
 
 /**
- * P6.5 (doc 32) — KodelaSession persistence for SaaS mode.
+ * P6.5 (internal design note) — KodelaSession persistence for SaaS mode.
  *
  * Local mode keeps the canonical session record as a JSON file at
  * `.kodela/sessions/<id>.json` (see `lib/core/src/storage/storage.ts`'s

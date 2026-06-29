@@ -102,7 +102,7 @@ export function supersedeDecisionForMcp(
   try {
     const storeInput: RecordDecisionInput = {
       // Resolve org at the boundary so the replacement row carries an explicit
-      // org_id (doc 08 §1), matching kodela_record_decision.
+      // org_id (internal design note), matching kodela_record_decision.
       org_id: resolveOrgId(input.new_decision.org_id),
       repo_id: input.new_decision.repo_id,
       title: input.new_decision.title,

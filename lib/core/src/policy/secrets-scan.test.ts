@@ -64,7 +64,7 @@ const NEGATIVES: Array<{ name: string; body: string }> = [
   { name: "git-sha",            body: "commit a5c85546b7a3c89c60dc6317c82a6d253e034cb5" },
   { name: "sha256-hash",        body: "sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" },
   { name: "semver-list",        body: "1.2.3, 1.2.4, 1.2.5, 1.3.0-beta.1" },
-  { name: "file-path",          body: "/home/swotpam/Documents/Kodela/lib/core/src/audit/hash-chain.ts" },
+  { name: "file-path",          body: "/home/user/Documents/Kodela/lib/core/src/audit/hash-chain.ts" },
   { name: "url",                body: "https://kodela.dev/docs/api/dashboard/decisions/graph?asOf=2026-06-25T00:00:00Z" },
   { name: "short-base64",       body: "aGVsbG8gd29ybGQ=" }, // 16 chars
   { name: "lorem-ipsum",        body: "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt." },
@@ -78,7 +78,7 @@ const NEGATIVES: Array<{ name: string; body: string }> = [
 // Sanity check: we hit the §5.2 50-fixture floor.
 const FIXTURE_COUNT = POSITIVES.length + NEGATIVES.length;
 
-test(`secrets-scan: fixture suite size is at least 50 (doc 23 §5.2)`, () => {
+test(`secrets-scan: fixture suite size is at least 50 (internal design note)`, () => {
   // 22 positives + 15 negatives = 37; pad with 13 randomized negatives below.
   // Final count is asserted dynamically after RANDOM_NEGATIVES is generated.
   assert.ok(FIXTURE_COUNT >= 22 + 15, `expected at least 37 hand-crafted fixtures, got ${FIXTURE_COUNT}`);
@@ -108,7 +108,7 @@ const RANDOM_NEGATIVES = Array.from({ length: 13 }, (_, i) => ({
   body: makeHex(64),
 }));
 
-test("secrets-scan: hand-crafted + randomised fixture corpus ≥ 50 (doc 23 §5.2 gate)", () => {
+test("secrets-scan: hand-crafted + randomised fixture corpus ≥ 50 (internal design note)", () => {
   const total = POSITIVES.length + NEGATIVES.length + RANDOM_NEGATIVES.length;
   assert.ok(total >= 50, `expected ≥ 50 fixtures, got ${total}`);
 });

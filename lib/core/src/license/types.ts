@@ -27,7 +27,7 @@ export type KodelaFeature = z.infer<typeof KodelaFeatureSchema>;
 
 export const KODELA_FEATURES: readonly KodelaFeature[] = KodelaFeatureSchema.options;
 
-export const KodelaLicensePlanSchema = z.enum(["free", "team", "enterprise"]);
+export const KodelaLicensePlanSchema = z.enum(["free", "pro", "team", "enterprise"]);
 
 export type KodelaLicensePlan = z.infer<typeof KodelaLicensePlanSchema>;
 
@@ -75,7 +75,7 @@ export const KodelaLicenseSchema = z.object({
    */
   signature: z.string().min(1).optional(),
   /**
-   * Phase 5.9 (doc 26) — admin role enforcement.
+   * Phase 5.9 (internal design note) — admin role enforcement.
    *
    * Identities (matched against the SSO session's `email` claim) that are
    * permitted to call destructive admin operations (RTBF, audit export,

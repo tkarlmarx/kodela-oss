@@ -6,7 +6,7 @@
  * Owns one table in `.kodela/index.db`:
  *   graph_edges — directed, typed edges between nodes.
  *
- * Nodes are NOT stored separately (doc 04 §4): an edge endpoint is a typed
+ * Nodes are NOT stored separately (internal design note): an edge endpoint is a typed
  * reference `(node_type, node_id)` into an existing row — e.g.
  * `('FILE_CHANGE', <entries.id>)`, `('DECISION', 'DEC-0007')`,
  * `('AI_SESSION', <session uuid>)`. A materialized nodes table is only worth it
@@ -19,8 +19,8 @@
  * at the hundreds-of-edges scale we have, and the CTE's payoff only shows at
  * Postgres/10M-edge scale.
  *
- * Every edge carries `capture_path` (doc 13 §9) and `extracted_by`/`confidence`
- * (doc 04 §3). MCP-authored edges are `capture_path='mcp'`, `extracted_by='rule'`,
+ * Every edge carries `capture_path` (internal design note) and `extracted_by`/`confidence`
+ * (internal design note). MCP-authored edges are `capture_path='mcp'`, `extracted_by='rule'`,
  * `confidence=1.0`.
  */
 
@@ -30,7 +30,7 @@ import type { DatabaseSync } from "node:sqlite";
 const SCHEMA_VERSION = "1.0.0" as const;
 const DEFAULT_ORG = "_default" as const;
 
-// ── Vocabulary (doc 04 §2/§3) ────────────────────────────────────────────────
+// ── Vocabulary (internal design note) ────────────────────────────────────────────────
 
 export type GraphNodeType =
   | "USER"
@@ -158,9 +158,9 @@ const DDL_GRAPH_EDGES_INDEXES = [
   "CREATE INDEX IF NOT EXISTS graph_edges_source_idx ON graph_edges(source_node_type, source_node_id);",
   "CREATE INDEX IF NOT EXISTS graph_edges_target_idx ON graph_edges(target_node_type, target_node_id);",
   "CREATE INDEX IF NOT EXISTS graph_edges_type_idx ON graph_edges(edge_type);",
-  // Dedup key (doc 04 §4) — also the ON CONFLICT target for idempotent upserts.
+  // Dedup key (internal design note) — also the ON CONFLICT target for idempotent upserts.
   "CREATE UNIQUE INDEX IF NOT EXISTS graph_edges_unique_idx ON graph_edges(org_id, edge_type, source_node_type, source_node_id, target_node_type, target_node_id);",
-  // Phase 3 — bitemporal queries (doc 23). asOf scans hit valid_from + valid_until in one index.
+  // Phase 3 — bitemporal queries (internal design note). asOf scans hit valid_from + valid_until in one index.
   "CREATE INDEX IF NOT EXISTS graph_edges_valid_idx ON graph_edges(valid_from, valid_until);",
 ] as const;
 
@@ -398,13 +398,13 @@ export function countEdges(db: DatabaseSync): number {
   return row.n;
 }
 
-// ── Ingestion edge builders (doc 04 §5 paths) ───────────────────────────────
+// ── Ingestion edge builders (internal design note) ───────────────────────────────
 //
 // Pure functions: build the EdgeInput[] for an event so each MCP tool stays
 // thin. Callers persist with insertEdges(db, edges, now). All MCP-origin edges
 // are extracted_by='rule', capture_path='mcp', confidence 1.0 (the defaults).
 
-/** decision_links.link_type → graph edge (doc 04 path #9). */
+/** decision_links.link_type → graph edge (internal design note). */
 const LINK_TYPE_EDGE: Record<
   string,
   { edge: GraphEdgeType; node: GraphNodeType; dir: "to-decision" | "from-decision" }

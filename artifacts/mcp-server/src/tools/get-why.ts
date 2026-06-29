@@ -36,7 +36,7 @@ import {
 import { getDecision } from "../lib/decisions-store.js";
 import { resolveDecisionDb, DECISION_DB_UNAVAILABLE } from "../lib/lazy-index.js";
 
-/** Edge allow-list for the get_why traversal (doc 04 §6.4). */
+/** Edge allow-list for the get_why traversal (internal design note). */
 const WHY_EDGE_TYPES: GraphEdgeType[] = [
   "IMPLEMENTS",
   "BELONGS_TO",
@@ -63,7 +63,7 @@ export const GetWhyInputSchema = z.object({
     .string()
     .optional()
     .describe(
-      "ISO timestamp — bi-temporal filter (doc 22 P3): return only decisions that were valid as of this point (decided by then and not yet superseded).",
+      "ISO timestamp — bi-temporal filter (internal design note): return only decisions that were valid as of this point (decided by then and not yet superseded).",
     ),
 });
 
@@ -126,7 +126,7 @@ export function getWhyForMcp(
     notes.push("line_range ignored — MVP is file-level.");
   }
 
-  // Bi-temporal cutoff (doc 22 P3): NaN means "no temporal filter".
+  // Bi-temporal cutoff (internal design note): NaN means "no temporal filter".
   let asOfMs = NaN;
   if (input.as_of) {
     asOfMs = Date.parse(input.as_of);

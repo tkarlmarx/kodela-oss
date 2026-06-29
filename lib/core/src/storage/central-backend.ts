@@ -104,7 +104,7 @@ export class CentralStorageBackend implements StorageBackend {
     return result;
   }
 
-  // P6.5 (doc 32 §3.3 Q3) — session methods delegate to storage.ts.  Central
+  // P6.5 (internal design note) — session methods delegate to storage.ts.  Central
   // is write-through-to-server for entries but keeps the canonical session
   // record locally; the dashboard/SaaS path reads sessions from SqlBackend
   // server-side after they're flushed via the entry batch upload.

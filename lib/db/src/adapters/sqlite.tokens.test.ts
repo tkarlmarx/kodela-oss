@@ -2,7 +2,7 @@
 // Copyright (C) 2026 The Kodela Authors
 /**
  * End-to-end API-token storage tests against the real SQLite adapter
- * (doc 26 Phase 3). Verifies create/list/revoke and that only the hash +
+ * (internal design note). Verifies create/list/revoke and that only the hash +
  * prefix are persisted — never the plaintext.
  */
 

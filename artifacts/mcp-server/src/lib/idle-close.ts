@@ -13,7 +13,7 @@
  *
  * The check is intentionally boot-time only in Sprint 1 / Pillar A. A
  * watcher-driven idle event loop is the right home for mid-session idle
- * detection (see docs/Business/execution-plan/13-universal-capture-governance.md
+ * detection (see the project design docs
  * §4 Pillar B).
  */
 

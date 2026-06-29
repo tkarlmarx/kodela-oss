@@ -10,7 +10,7 @@ export const orgsTable = pgTable("orgs", {
   /**
    * Fingerprint of the org's currently-installed signed license — the SHA-256
    * of the verified `kodela.license.json`. Repurposed from the formerly dormant
-   * `license_key` column (doc 24 W5) so there is exactly ONE license notion:
+   * `license_key` column (internal design note) so there is exactly ONE license notion:
    * the signed file is the source of truth, and this caches its identity for
    * server-side seat lookups without trusting client-sent data. Nullable: free
    * orgs have no license.

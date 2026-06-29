@@ -3,7 +3,7 @@
 /**
  * Tree-sitter parser dispatcher for the function-level code graph.
  *
- * Phase 4 of docs/Business/execution-plan/23-catch-up-implementation-plan-2026q3.md
+ * Phase 4 of the project design docs
  * and §4.1 of doc 14 (function-level code graph).
  *
  * Resolves the right grammar from the file extension, parses the source, runs a
@@ -142,7 +142,7 @@ const grammarCache = new Map<SupportedLanguage, Promise<any | null>>();
  * Per-language `{ parser, query }` cache. One Parser allocation + setLanguage
  * + Query compile per language, reused across every parseFunctions() call for
  * that language. Avoids 32ms-per-file cold path slowdown in the perf bench
- * (doc 23 §4.2).
+ * (internal design note).
  *
  * Safe for serial use; the dispatcher is single-threaded.
  */
