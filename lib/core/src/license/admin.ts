@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 The Kodela Authors
 /**
  * Admin-role resolution — Phase 5.9 / doc 26.

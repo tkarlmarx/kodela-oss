@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 The Kodela Authors
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
@@ -11,6 +11,12 @@ import { startWatcher } from "@kodela/watcher";
 import type { Watcher, BatchedEvent, WatcherOptions, ChangeEvent } from "@kodela/watcher";
 import { heal } from "./heal-engine.js";
 import type { HealEngineOptions, HealResult } from "./heal-engine.js";
+import { runMemoryBank } from "./memory-bank.js";
+
+// Auto-refresh the agent Memory Bank from the watch loop, throttled so a busy
+// editor doesn't thrash the files. Module-level: the watcher is one process.
+const MEMORY_BANK_THROTTLE_MS = 20_000;
+let lastMemoryBankRefreshMs = 0;
 import {
   formatEngineWatchBatchResult,
   formatWatchBatchResult,
@@ -625,6 +631,16 @@ async function handleBatch(
     stdout.write(
       `[watch] Error during heal: ${err instanceof Error ? err.message : String(err)}\n`,
     );
+  }
+
+  // Keep the agent Memory Bank current automatically — no developer command.
+  // Throttled and fire-and-forget so it never blocks or breaks the watch loop;
+  // runMemoryBank is idempotent (writes only when content actually changed).
+  if (!dryRun && Date.now() - lastMemoryBankRefreshMs > MEMORY_BANK_THROTTLE_MS) {
+    lastMemoryBankRefreshMs = Date.now();
+    void runMemoryBank({ repoRoot }).catch(() => {
+      // non-fatal — Memory Bank refresh must never disrupt capture.
+    });
   }
 
   // Gap 58 Phase A — Spike detection pass (runs independently of autoAnnotate).

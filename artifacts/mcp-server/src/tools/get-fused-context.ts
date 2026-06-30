@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 The Kodela Authors
 /**
  * `kodela_get_fused_context` MCP tool — Sprint 1 / doc 27 [E.4]

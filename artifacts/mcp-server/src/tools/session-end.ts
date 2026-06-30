@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 The Kodela Authors
 /**
  * MCP Context Layer — `kodela_session_end` tool.
@@ -25,8 +25,8 @@ import {
   getFilesChangedSince,
   partitionFiles,
 } from "@kodela/core/sessions";
-import { readSession } from "@kodela/core";
-import type { StorageBackend } from "@kodela/core";
+import { readSession, readCaptureTier, tierBlocksClose } from "@kodela/core";
+import type { StorageBackend, CaptureTier } from "@kodela/core";
 import type { MCPContextEnvelope } from "@kodela/core/sessions";
 import { enqueueSynthesisEvent } from "@kodela/core/synthesis";
 
@@ -83,6 +83,13 @@ export interface SessionEndResult {
    * synchronously.
    */
   synthesisEventsEnqueued: number;
+  /**
+   * The capture tier in effect for this close ("enforced" | "assisted" |
+   * "ambient"). When it is not "enforced", a close with missing per-file
+   * context succeeds and those files are routed to async synthesis instead
+   * of blocking — `synthesisEventsEnqueued` reflects how many.
+   */
+  captureTier: CaptureTier;
   /**
    * SaaS / team mode only — outcome of mirroring the closed session into
    * Postgres (the store the dashboard reads). Absent in local mode.
@@ -188,8 +195,15 @@ export async function sessionEnd(
 
   const missing = enforcedSet.filter((p) => !annotatedPaths.has(p));
 
+  // ── Capture tier ──────────────────────────────────────────────────────────
+  // Only the "enforced" tier blocks close on missing per-file context. In
+  // "assisted" / "ambient" the close proceeds and the missing files are
+  // enqueued for async synthesis below (Phase 2), so a non-technical or
+  // hands-off setup still gets populated memory without a hard stop.
+  const captureTier: CaptureTier = readCaptureTier(repoRoot);
+
   // ── Enforcement decision ──────────────────────────────────────────────────
-  if (missing.length > 0 && !force) {
+  if (missing.length > 0 && !force && tierBlocksClose(captureTier)) {
     const baselineRef = session.baselineCommit
       ? session.baselineCommit.slice(0, 8)
       : "unknown";
@@ -324,6 +338,7 @@ export async function sessionEnd(
     actorBreakdown,
     outOfScopeFiles,
     synthesisEventsEnqueued,
+    captureTier,
     ...(sessionRemote ? { remote: sessionRemote } : {}),
   };
 }

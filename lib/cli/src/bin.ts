@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 The Kodela Authors
 import { Command } from "commander";
 import process from "node:process";
@@ -15,7 +15,7 @@ import {
 } from "./commands/activate.js";
 import { runStatus } from "./commands/status.js";
 import { runAdd } from "./commands/add.js";
-import { runExplain, formatExplainResult } from "./commands/explain.js";
+import { runExplain, formatExplainResult, formatExplainShare } from "./commands/explain.js";
 import { runCorrect, formatCorrectResult } from "./commands/correct.js";
 import { runEnrich, formatEnrichResult } from "./commands/enrich.js";
 import { runHandoff } from "./commands/handoff.js";
@@ -90,6 +90,12 @@ import { runHealth, formatHealthResult } from "./commands/health.js";
 import { runGraph, formatGraphResult } from "./commands/graph.js";
 import { runExportGraph } from "./commands/export-graph.js";
 import type { ExportGraphFormat } from "./commands/export-graph.js";
+import { runMemoryBank, formatMemoryBankResult } from "./commands/memory-bank.js";
+import { runPack, formatPackResult } from "./commands/pack.js";
+import { runView, serveView, formatViewResult, DEFAULT_VIEW_PORT } from "./commands/view.js";
+import { runUi, DEFAULT_UI_PORT } from "./commands/ui.js";
+import { runMetrics, formatMetricsResult } from "./commands/metrics.js";
+import { runCaptureTier, formatCaptureTierResult } from "./commands/capture-tier.js";
 import { integrate, runClaudeWithContext, formatInjectResult } from "./commands/integration.js";
 import type { IntegrationTarget } from "./commands/integration.js";
 import type { GraphQuery } from "./commands/graph.js";
@@ -478,7 +484,12 @@ program
     "Include author names in text output (Gap 20d — hidden by default to frame annotations as 'notes to future you')",
     false,
   )
-  .action(async (file: string, opts: { line?: string; output?: string; showAuthor?: boolean }) => {
+  .option(
+    "--share",
+    "Emit a clean markdown 'why this changed' snippet to paste into a PR or handoff",
+    false,
+  )
+  .action(async (file: string, opts: { line?: string; output?: string; showAuthor?: boolean; share?: boolean }) => {
     const repoRoot = await findRepoRoot(process.cwd());
     const output = OUTPUT_MODES.includes(opts.output as OutputMode)
       ? (opts.output as OutputMode)
@@ -490,6 +501,10 @@ program
         line: opts.line ? parseInt(opts.line, 10) : undefined,
         output,
       });
+      if (opts.share) {
+        process.stdout.write(formatExplainShare(result) + "\n");
+        process.exit(0);
+      }
       process.stdout.write(formatExplainResult(result, output, { showAuthor: opts.showAuthor }) + "\n");
       process.exit(0);
     } catch (err) {
@@ -1423,6 +1438,181 @@ program
       }
     },
   );
+
+program
+  .command("memory-bank")
+  .description(
+    "Auto-generate the agent Memory Bank — a memory-bank/ folder of six markdown files\n" +
+      "    (projectbrief, productContext, activeContext, systemPatterns, techContext, progress)\n" +
+      "    that AI agents (Cline, Roo, Cursor, Claude Code, …) read at the start of every task.\n" +
+      "    Built from Kodela's captured context + project DNA. Human edits outside the managed\n" +
+      "    markers are preserved. Use --check in CI to fail when the files are stale.",
+  )
+  .option("--dir <path>", "Output directory for the memory bank", "memory-bank")
+  .option("--check", "Don't write — exit 1 if the memory bank is out of date", false)
+  .option("-o, --output <format>", "Output format: text, json", "text")
+  .action(
+    async (opts: { dir: string; check: boolean; output: string }) => {
+      const repoRoot = await findRepoRoot(process.cwd());
+      const output = opts.output === "json" ? "json" : "text";
+      try {
+        const result = await runMemoryBank({
+          repoRoot,
+          dir: opts.dir,
+          check: opts.check,
+          output,
+        });
+        process.stdout.write(formatMemoryBankResult(result, output) + "\n");
+        process.exit(opts.check && result.outdated ? 1 : 0);
+      } catch (err) {
+        process.stderr.write(
+          `Error: ${err instanceof Error ? err.message : String(err)}\n`,
+        );
+        process.exit(1);
+      }
+    },
+  );
+
+program
+  .command("pack")
+  .description(
+    "Pack the repository + its captured *why* into one AI-ready markdown file.\n" +
+      "    Project DNA + a repo map + the reasoning behind changes — paste into any LLM.\n" +
+      "    Works on a cold repo. Default output: kodela-pack.md.",
+  )
+  .option("--out <file>", "Output file path", "kodela-pack.md")
+  .option("--stdout", "Print to stdout instead of writing a file", false)
+  .option("-o, --output <format>", "Result format when writing a file: text, json", "text")
+  .action(async (opts: { out: string; stdout: boolean; output: string }) => {
+    const repoRoot = await findRepoRoot(process.cwd());
+    const output = opts.output === "json" ? "json" : "text";
+    try {
+      const result = await runPack({ repoRoot, out: opts.out, stdout: opts.stdout });
+      if (opts.stdout) {
+        process.stdout.write(result.content);
+      } else {
+        process.stdout.write(formatPackResult(result, output) + "\n");
+      }
+      process.exit(0);
+    } catch (err) {
+      process.stderr.write(
+        `Error: ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+      process.exit(1);
+    }
+  });
+
+program
+  .command("view")
+  .description(
+    "Generate a local, read-only HTML viewer of the captured memory.\n" +
+      "    Project DNA + capture stats + a filterable timeline of the *why* — no\n" +
+      "    account, no server, offline. Default output: .kodela/view.html.",
+  )
+  .option("--out <file>", "Output file path", ".kodela/view.html")
+  .option("--serve", "Serve the viewer read-only on localhost instead of just writing it", false)
+  .option("--port <number>", "Port for --serve", String(DEFAULT_VIEW_PORT))
+  .option("-o, --output <format>", "Result format: text, json", "text")
+  .action(async (opts: { out: string; serve: boolean; port: string; output: string }) => {
+    const repoRoot = await findRepoRoot(process.cwd());
+    const output = opts.output === "json" ? "json" : "text";
+    try {
+      const result = await runView({ repoRoot, out: opts.out });
+      if (opts.serve) {
+        const port = Number.parseInt(opts.port, 10) || DEFAULT_VIEW_PORT;
+        serveView(repoRoot, port);
+        process.stdout.write(
+          `Kodela memory — live read-only viewer at http://localhost:${port}  (auto-refreshes; Ctrl-C to stop)\n`,
+        );
+        // keep the process alive while serving
+      } else {
+        process.stdout.write(formatViewResult(result, output) + "\n");
+        process.exit(0);
+      }
+    } catch (err) {
+      process.stderr.write(
+        `Error: ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+      process.exit(1);
+    }
+  });
+
+program
+  .command("ui")
+  .description(
+    "Open the interactive, read-only local web app for the captured memory.\n" +
+      "    Tabs: Files (search the *why*, filter by severity, drill into any file,\n" +
+      "    Copy why for PR), Graph (co-change memory graph), Decisions (human-authored\n" +
+      "    decisions), Timeline, and Memory health. A built-in Help tab explains each\n" +
+      "    view. Single-user, local-only, no account — nothing leaves your machine.",
+  )
+  .option("--port <number>", "Port to serve on", String(DEFAULT_UI_PORT))
+  .option("--host <host>", "Interface to bind (default 127.0.0.1; use 0.0.0.0 to host the read-only demo)", "127.0.0.1")
+  .option("--no-open", "Do not auto-open the browser")
+  .action(async (opts: { port: string; host: string; open: boolean }) => {
+    const repoRoot = await findRepoRoot(process.cwd());
+    try {
+      const port = Number.parseInt(opts.port, 10) || DEFAULT_UI_PORT;
+      const { url } = await runUi({ repoRoot, port, host: opts.host, open: opts.open });
+      process.stdout.write(
+        `Kodela memory — interactive viewer at ${url}  (read-only, local; Ctrl-C to stop)\n`,
+      );
+      // keep the process alive while serving
+    } catch (err) {
+      process.stderr.write(
+        `Error: ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+      process.exit(1);
+    }
+  });
+
+program
+  .command("metrics")
+  .description(
+    "Show whether your agent is getting smarter every session.\n" +
+      "    Local retention metrics from the captured graph: memory size, captures\n" +
+      "    per session and its trend, and how often sessions reuse prior context.",
+  )
+  .option("-o, --output <format>", "Result format: text, json", "text")
+  .action(async (opts: { output: string }) => {
+    const repoRoot = await findRepoRoot(process.cwd());
+    const output = opts.output === "json" ? "json" : "text";
+    try {
+      const result = await runMetrics({ repoRoot, output });
+      process.stdout.write(formatMetricsResult(result, output) + "\n");
+      process.exit(0);
+    } catch (err) {
+      process.stderr.write(
+        `Error: ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+      process.exit(1);
+    }
+  });
+
+program
+  .command("capture-tier")
+  .argument("[tier]", "enforced | assisted | ambient (omit to show the current tier)")
+  .description(
+    "Read or set how strictly Kodela enforces per-file context before a session\n" +
+      "    can close. 'enforced' (default) blocks close until every touched file is\n" +
+      "    explained; 'assisted' closes and queues missing files for async synthesis;\n" +
+      "    'ambient' closes immediately and fills them in the background.",
+  )
+  .option("-o, --output <format>", "Result format: text, json", "text")
+  .action(async (tier: string | undefined, opts: { output: string }) => {
+    const repoRoot = await findRepoRoot(process.cwd());
+    const output = opts.output === "json" ? "json" : "text";
+    try {
+      const result = await runCaptureTier({ repoRoot, tier });
+      process.stdout.write(formatCaptureTierResult(result, output) + "\n");
+      process.exit(0);
+    } catch (err) {
+      process.stderr.write(
+        `Error: ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+      process.exit(1);
+    }
+  });
 
 program
   .command("install-hooks")

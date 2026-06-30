@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 The Kodela Authors
 /**
  * `kodela_get_project_dna` MCP tool (07 §3.10) — the headline Project DNA.

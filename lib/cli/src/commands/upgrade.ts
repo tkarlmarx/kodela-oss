@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 The Kodela Authors
 /**
  * `kodela upgrade` — start a self-serve paid-tier checkout (BR-MON-1).

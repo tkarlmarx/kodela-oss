@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 The Kodela Authors
 export type { KodelaConfig, CiEnforcement, CiThresholds, HooksConfig } from "./config/schema.js";
 export { KodelaConfigSchema, HooksConfigSchema, DEFAULT_CONFIG } from "./config/schema.js";
@@ -26,7 +26,7 @@ export type { AddOptions, AddResult } from "./commands/add.js";
 export { runAdd } from "./commands/add.js";
 
 export type { ExplainOptions, ExplainResult } from "./commands/explain.js";
-export { runExplain, formatExplainResult } from "./commands/explain.js";
+export { runExplain, formatExplainResult, formatExplainShare } from "./commands/explain.js";
 
 export type { HealOptions, HealResult, HealEntry } from "./commands/heal.js";
 export { runHeal, formatHealResult } from "./commands/heal.js";
@@ -63,6 +63,26 @@ export type { CiPlatform } from "./ci-templates/index.js";
 
 export type { ExportOptions, ExportResult } from "./commands/export.js";
 export { runExport, formatExportResult } from "./commands/export.js";
+
+export type {
+  MemoryBankOptions,
+  MemoryBankResult,
+  MemoryFileResult,
+  MemoryFileAction,
+} from "./commands/memory-bank.js";
+export { runMemoryBank, renderMemoryBank, formatMemoryBankResult } from "./commands/memory-bank.js";
+
+export type { PackOptions, PackResult } from "./commands/pack.js";
+export { runPack, formatPackResult } from "./commands/pack.js";
+
+export type { ViewOptions, ViewResult } from "./commands/view.js";
+export { runView, serveView, buildViewHtml, formatViewResult, DEFAULT_VIEW_PORT } from "./commands/view.js";
+
+export type { UiOptions, UiData, UiFile, UiEntry } from "./commands/ui.js";
+export { runUi, serveUi, buildUiHtml, loadUiData, openBrowser, DEFAULT_UI_PORT } from "./commands/ui.js";
+
+export type { MetricsOptions, MetricsResult, WeeklyPoint } from "./commands/metrics.js";
+export { runMetrics, formatMetricsResult, isoWeek } from "./commands/metrics.js";
 
 export type { AiProvider, AiProviderName, AiLayerConfig, AiLayerOptions } from "./commands/ai-layer.js";
 export { resolveProvider, runAiLayer } from "./commands/ai-layer.js";

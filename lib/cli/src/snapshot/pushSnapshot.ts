@@ -1,9 +1,10 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 The Kodela Authors
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { ContextEntry } from "@kodela/core";
 import type { StatusResult } from "../status/metrics.js";
+import { readLocalGraph } from "./readLocalGraph.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -102,4 +103,22 @@ export async function pushSnapshotToServer(
     }),
     signal: AbortSignal.timeout(5_000),
   });
+
+  // Parity PR #2 — push the repo's fused graph (decisions + valid edges) so the
+  // dashboard's function-context / decisions / graph views work on the hosted
+  // path. Best-effort and independent of the snapshot result above: a larger
+  // timeout (the graph can be bigger than the metrics row), all errors swallowed.
+  try {
+    const graph = await readLocalGraph(repoRoot);
+    if (graph) {
+      await fetch(`${apiUrl}/api/dashboard/repos/${repo.id}/graph`, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify(graph),
+        signal: AbortSignal.timeout(15_000),
+      });
+    }
+  } catch {
+    /* non-fatal — graph push never blocks status */
+  }
 }

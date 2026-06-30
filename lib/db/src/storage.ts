@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 The Kodela Authors
 import type { AuditEventType } from "./schema/auditEvents.js";
 
@@ -206,6 +206,89 @@ export interface InsertSnapshotData {
   confidenceScore: number;
 }
 
+// ── Fused-graph ingest (parity PR #2) ───────────────────────────────────────
+// The SaaS writer path: the CLI reads the repo's local `.kodela/index.db` graph
+// and pushes it; the server upserts it into the Postgres mirror org-/repo-scoped.
+// `orgId` + `repoId` are supplied by the authenticated route, NOT the payload,
+// so a client can never write another tenant's rows. Timestamps are ISO strings
+// on the wire (the local store keeps them as TEXT).
+
+export interface IngestDecision {
+  id: string;
+  title: string;
+  category?: string | null;
+  status: string;
+  visibility?: string | null;
+  problem: string;
+  decision: string;
+  reason: string;
+  consequences?: string | null;
+  tradeOffs?: string | null;
+  outcome?: string | null;
+  outcomeEvidence?: string | null;
+  authorId: string;
+  /** JSON-encoded string arrays, mirroring the local store's TEXT columns. */
+  approverIds?: string | null;
+  tags?: string | null;
+  supersededBy?: string | null;
+  supersedes?: string | null;
+  lastReviewedAt?: string | null;
+  decidedAt: string;
+  schemaVersion: string;
+}
+
+export interface IngestDecisionOption {
+  id: string;
+  decisionId: string;
+  label: string;
+  description?: string | null;
+  pros?: string | null;
+  cons?: string | null;
+  /** 0 | 1, mirroring the local store's integer-boolean. */
+  wasChosen: number;
+  rejectionReason?: string | null;
+  position?: number | null;
+}
+
+export interface IngestDecisionLink {
+  id: string;
+  decisionId: string;
+  linkType: string;
+  externalId: string;
+  displayLabel?: string | null;
+}
+
+export interface IngestGraphEdge {
+  edgeType: string;
+  sourceNodeType: string;
+  sourceNodeId: string;
+  targetNodeType: string;
+  targetNodeId: string;
+  metadata?: Record<string, unknown>;
+  confidence?: number;
+  extractedBy?: string;
+  capturePath?: string;
+  validFrom: string;
+  validUntil?: string | null;
+  schemaVersion?: string;
+}
+
+export interface IngestRepoGraphData {
+  decisions?: IngestDecision[];
+  decisionOptions?: IngestDecisionOption[];
+  decisionLinks?: IngestDecisionLink[];
+  edges?: IngestGraphEdge[];
+}
+
+export interface IngestRepoGraphResult {
+  decisions: number;
+  decisionOptions: number;
+  decisionLinks: number;
+  edgesUpserted: number;
+  /** Currently-valid edges closed because they were absent from the push. */
+  edgesSuperseded: number;
+}
+
 export interface KodelaStorage {
   upsertOrg(orgId: string): Promise<void>;
 
@@ -232,6 +315,20 @@ export interface KodelaStorage {
   getLatestSnapshotByRepoLinkId(repoLinkId: string): Promise<SnapshotRow | null>;
   getSnapshotsByRepoIds(repoIds: string[]): Promise<SnapshotRow[]>;
   insertSnapshot(data: InsertSnapshotData): Promise<void>;
+
+  /**
+   * Parity PR #2 — upsert a repo's fused graph (decisions + options + links +
+   * edges) pushed from its local `.kodela/index.db`. Idempotent: decisions/
+   * options/links upsert by id, edges upsert by their dedup unique key. Edges
+   * currently valid in the store for `(orgId, repoId)` but absent from `data.edges`
+   * are closed (`valid_until = now`) — so the store converges to the pushed
+   * valid graph. MUST scope every write to `orgId` + `repoId`.
+   */
+  ingestRepoGraph(
+    orgId: string,
+    repoId: string,
+    data: IngestRepoGraphData,
+  ): Promise<IngestRepoGraphResult>;
 
   insertSignOffRecord(data: InsertSignOffData): Promise<SignOffRecordRow>;
   /**

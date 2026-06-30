@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 The Kodela Authors
 /** A 1-based inclusive line range: [startLine, endLine]. */
 export type LineRange = [number, number];

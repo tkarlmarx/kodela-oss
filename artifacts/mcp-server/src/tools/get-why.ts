@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 The Kodela Authors
 /**
  * `kodela_get_why` MCP tool (07 §3.7, algorithm doc 04 §6.4) — the headline

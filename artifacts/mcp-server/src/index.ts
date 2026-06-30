@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 The Kodela Authors
 /**
  * @workspace/mcp-server — Gap 54
@@ -92,6 +92,11 @@ import {
   GetWhyInputSchema,
   formatGetWhyResponse,
 } from "./tools/get-why.js";
+import {
+  getFunctionContextForMcp,
+  GetFunctionContextInputSchema,
+  formatFunctionContextResponse,
+} from "./tools/get-function-context.js";
 import {
   findRelatedChangesForMcp,
   FindRelatedChangesInputSchema,
@@ -907,6 +912,36 @@ async function main(): Promise<void> {
           content: [{ type: "text", text: formatGetWhyResponse(result) }],
           isError: !result.ok,
         };
+      } catch (err) {
+        return {
+          content: [{ type: "text", text: `Error: ${err instanceof Error ? err.message : String(err)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // ── kodela_get_function_context — the FUSED query (code → session → decision) ─
+  server.tool(
+    "kodela_get_function_context",
+    "Answer 'why does this function exist, and what decided it?' by traversing " +
+    "the fused memory graph from a CODE_FUNCTION node to the session that " +
+    "produced it, the decision(s) it implements, and any linked PRs / incidents.\n\n" +
+    "file_path (required), ast_anchor (required — the stable '<kind>:<name>' id, " +
+    "e.g. 'function:roundToDecimals'), min_confidence (optional).\n\n" +
+    "Functions are linked into the graph automatically when kodela_annotate_file " +
+    "is called with file_content. Returns sessions (with start time + goal), " +
+    "decisions (with title/category/status), PRs, and incidents.",
+    {
+      file_path:      GetFunctionContextInputSchema.shape.file_path,
+      ast_anchor:     GetFunctionContextInputSchema.shape.ast_anchor,
+      min_confidence: GetFunctionContextInputSchema.shape.min_confidence,
+    },
+    async (input) => {
+      try {
+        const parsed = GetFunctionContextInputSchema.parse(input);
+        const result = await getFunctionContextForMcp(repoRoot, parsed, db);
+        return { content: [{ type: "text", text: formatFunctionContextResponse(result) }] };
       } catch (err) {
         return {
           content: [{ type: "text", text: `Error: ${err instanceof Error ? err.message : String(err)}` }],

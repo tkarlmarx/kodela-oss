@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 The Kodela Authors
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -25,6 +25,8 @@ import type {
   InsertRepoLinkData,
   SnapshotRow,
   InsertSnapshotData,
+  IngestRepoGraphData,
+  IngestRepoGraphResult,
   SignOffRecordRow,
   InsertSignOffData,
   SignOffQueryFilters,
@@ -975,6 +977,28 @@ export class SqliteStorage implements KodelaStorage {
         data.confidenceScore,
       );
     return Promise.resolve();
+  }
+
+  /**
+   * Parity PR #2 — no-op on the SQLite backend. The dashboard's fused-graph
+   * readers (functionContextReader, decisionsReader, graph subgraphs) read the
+   * repo's own `.kodela/index.db` directly via node:sqlite, so a self-hosted /
+   * SQLite-backed deployment already has the graph at its source — there is
+   * nothing to mirror. The Postgres backend is where the multi-tenant ingest
+   * actually lands (see PostgresStorage.ingestRepoGraph).
+   */
+  ingestRepoGraph(
+    _orgId: string,
+    _repoId: string,
+    data: IngestRepoGraphData,
+  ): Promise<IngestRepoGraphResult> {
+    return Promise.resolve({
+      decisions: data.decisions?.length ?? 0,
+      decisionOptions: data.decisionOptions?.length ?? 0,
+      decisionLinks: data.decisionLinks?.length ?? 0,
+      edgesUpserted: data.edges?.length ?? 0,
+      edgesSuperseded: 0,
+    });
   }
 
   insertSignOffRecord(data: InsertSignOffData): Promise<SignOffRecordRow> {

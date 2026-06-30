@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 The Kodela Authors
 /**
  * Per-file MCP context capture — `kodela_annotate_file` tool.
@@ -35,7 +35,8 @@ import { linkEntryToSession } from "@kodela/core/sessions";
 import type { ContextEntry, EntryRow, MappingFile, StorageBackend } from "@kodela/core";
 import type { DatabaseSync } from "node:sqlite";
 import { resolveSessionActorForAnnotate } from "../lib/resolve-actor.js";
-import { insertEdges, edgesForAnnotation } from "../lib/graph-store.js";
+import { insertEdges, edgesForAnnotation, edgesForCodeFunctions } from "../lib/graph-store.js";
+import { parseFunctions, languageForFile } from "@kodela/core/code-graph";
 import { loadCapturePolicy, evaluateCapture } from "@kodela/core/policy";
 import { logCaptureDenial, encryptFieldsInPlace, isEncryptionEnabled } from "@kodela/core/audit";
 
@@ -366,6 +367,38 @@ export async function annotateFile(
       );
     } catch {
       // Non-fatal — annotation already persisted; edges are enrichment.
+    }
+
+    // Bridge edges (internal design note) — link this FILE_CHANGE to the CODE_FUNCTION nodes
+    // it touched so the graph fuses code structure with the decision/session
+    // graph. Best-effort: needs file_content and a tree-sitter grammar.
+    if (input.file_content) {
+      try {
+        const language = languageForFile(input.file_path);
+        if (language) {
+          const functions = await parseFunctions(input.file_content, language);
+          if (functions.length > 0) {
+            insertEdges(
+              db,
+              edgesForCodeFunctions({
+                entryId: entry.id,
+                filePath: input.file_path,
+                functions: functions.map((f) => ({
+                  astAnchor: f.ast_anchor,
+                  name: f.name,
+                  kind: f.kind,
+                  startLine: f.startLine,
+                  endLine: f.endLine,
+                  language: f.language,
+                })),
+              }),
+              now,
+            );
+          }
+        }
+      } catch {
+        // Non-fatal — fusion edges are enrichment; grammar may be unavailable.
+      }
     }
   }
 

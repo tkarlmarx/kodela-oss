@@ -60,4 +60,4 @@ manually; end-to-end proxy integration tests are a known follow-up.
 
 ## License
 
-AGPL-3.0-only (open core). See [`../../LICENSING.md`](../../LICENSING.md).
+Apache-2.0 (open core). See [`../../LICENSING.md`](../../LICENSING.md).

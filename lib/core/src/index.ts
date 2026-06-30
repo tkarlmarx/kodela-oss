@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 The Kodela Authors
 export * from "./schema/index.js";
 export {
@@ -27,6 +27,7 @@ export * from "./license/index.js";
 export * from "./ai-tool-resolver/index.js";
 export * from "./scope/index.js";
 export * from "./policy/index.js";
+export * from "./capture/index.js";
 export {
   ATTRIBUTION_CONFIDENCE,
   isMeaningfulChange,

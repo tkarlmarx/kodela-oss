@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 The Kodela Authors
 import { readIndex, readContextEntry } from "@kodela/core";
 import type { ContextEntry } from "@kodela/core";
@@ -51,4 +51,45 @@ export function formatExplainResult(
     return `No context entries found for ${result.filePath}.`;
   }
   return formatEntries(result.entries, output, opts);
+}
+
+/**
+ * Render a clean, self-contained markdown snippet — the "why this changed"
+ * artifact a developer drops into a PR description or a handoff message.
+ * Unlike `formatExplainResult` (which mirrors the terminal/JSON views), this
+ * is shaped for pasting into GitHub: no ANSI, stable ordering, attribution
+ * and reasoning inline. Returns just the heading + a note when nothing was
+ * captured, so it's always safe to paste.
+ */
+export function formatExplainShare(result: ExplainResult): string {
+  const heading = `## Why this changed — \`${result.filePath}\``;
+  if (result.entries.length === 0) {
+    return `${heading}\n\n_No captured context yet for this file._`;
+  }
+
+  const lines: string[] = [heading, ""];
+  for (const e of result.entries) {
+    const range =
+      e.lineRange.start === e.lineRange.end
+        ? `L${e.lineRange.start}`
+        : `L${e.lineRange.start}–${e.lineRange.end}`;
+    const meta = [e.severity, e.source].filter(Boolean).join(" · ");
+    const note = e.note.trim().replace(/\s*\n\s*/g, " ");
+    lines.push(`- **${range}** (${meta}) — ${note}`);
+
+    const reasoning = e.origin?.reasoning ?? [];
+    for (const step of reasoning) {
+      lines.push(`  - ${step.trim()}`);
+    }
+    if (e.link) {
+      lines.push(`  - ↳ ${e.link}`);
+    }
+  }
+
+  const count = result.entries.length;
+  lines.push("");
+  lines.push(
+    `_Captured with [Kodela](https://github.com/tkarlmarx/kodela-oss) · ${count} note${count === 1 ? "" : "s"}._`,
+  );
+  return lines.join("\n");
 }

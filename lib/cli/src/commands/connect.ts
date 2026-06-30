@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 The Kodela Authors
 /**
  * `kodela connect` — one command to wire Kodela into every MCP-capable AI tool.
@@ -25,6 +25,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { runWatchDetach } from "./watch-daemon.js";
+import { runMemoryBank } from "./memory-bank.js";
 
 const HOME = os.homedir();
 
@@ -295,6 +296,8 @@ export interface ConnectResult {
   watcherStarted: boolean;
   watcherReason?: string;
   agents?: { path: string; action: AgentsAction };
+  /** The auto-generated agent Memory Bank (created on --apply). */
+  memoryBank?: { dir: string; files: number };
 }
 
 export interface ConnectOptions {
@@ -390,6 +393,19 @@ export async function runConnect(opts: ConnectOptions): Promise<ConnectResult> {
     }
   }
 
+  // Auto-generate the agent Memory Bank so it exists immediately after setup,
+  // with zero further commands from the developer. Refreshed continuously by
+  // the watcher thereafter.
+  let memoryBank: ConnectResult["memoryBank"];
+  if (apply) {
+    try {
+      const mb = await runMemoryBank({ repoRoot });
+      memoryBank = { dir: mb.dir, files: mb.files.length };
+    } catch {
+      // non-fatal — capture wiring is the important part.
+    }
+  }
+
   return {
     items,
     entry: buildMcpEntry(kodelaHome, undefined, npx),
@@ -397,6 +413,7 @@ export async function runConnect(opts: ConnectOptions): Promise<ConnectResult> {
     watcherStarted,
     watcherReason,
     agents,
+    memoryBank,
   };
 }
 
@@ -459,6 +476,11 @@ export function formatConnectResult(result: ConnectResult): string {
         ? "✓ Silent capture watcher running (covers any tool, incl. Bolt/web)."
         : `⚠ Watcher not started${result.watcherReason ? ` — ${result.watcherReason}` : ""}.`,
     );
+    if (result.memoryBank) {
+      lines.push(
+        `✓ Memory Bank generated in ${result.memoryBank.dir}/ (${result.memoryBank.files} files) — refreshed automatically as you work.`,
+      );
+    }
     lines.push("Reload your AI tool(s) so they pick up the kodela MCP server.");
   } else {
     lines.push("Run `kodela connect --apply` to write the configs above + start the watcher.");

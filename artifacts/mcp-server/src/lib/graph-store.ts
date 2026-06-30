@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 The Kodela Authors
 /**
  * Memory Graph — edge storage layer (MVP).
@@ -47,7 +47,12 @@ export type GraphNodeType =
   | "INCIDENT"
   | "DOCUMENT"
   | "DISCUSSION"
-  | "ADR";
+  | "ADR"
+  // Code-structure node (internal design note) — a parsed function/method/class within a
+  // file. Synthetic: not materialized as a row; identified by a stable id
+  // `<repoRelPath>#<ast_anchor>` so it survives renames. This is the node that
+  // FUSES the code-structure graph with the decision/session graph.
+  | "CODE_FUNCTION";
 
 export type GraphEdgeType =
   | "AUTHORED"
@@ -78,7 +83,11 @@ export type GraphEdgeType =
   | "SUPERSEDES"
   | "LINKS_TO"
   | "CODIFIES"
-  | "MENTIONS";
+  | "MENTIONS"
+  // FILE_CHANGE —CONTAINS_FUNCTION→ CODE_FUNCTION (internal design note). The bridge edge:
+  // following it lets a query hop from a function to the entry that captured
+  // it, and onward to the session and decision behind it.
+  | "CONTAINS_FUNCTION";
 
 export type ExtractedBy = "rule" | "heuristic" | "llm" | "manual";
 export type CapturePath =
@@ -475,6 +484,50 @@ export function edgesForAnnotation(input: {
     });
   }
   return edges;
+}
+
+/** Stable, rename-resilient id for a CODE_FUNCTION node: `<repoRelPath>#<ast_anchor>`. */
+export function codeFunctionNodeId(filePath: string, astAnchor: string): string {
+  return `${filePath}#${astAnchor}`;
+}
+
+/** Minimal parsed-function shape the fusion edge needs (a subset of CodeGraphFunction). */
+export interface CodeFunctionLike {
+  astAnchor: string;
+  name?: string;
+  kind?: string;
+  startLine?: number;
+  endLine?: number;
+  language?: string;
+}
+
+/**
+ * Path #14 — link a FILE_CHANGE entry to the CODE_FUNCTION nodes it touched.
+ * This is the bridge that fuses the code-structure graph with the
+ * decision/session graph: once these edges exist, a query can start at a
+ * function and reach the session and decision behind it.
+ */
+export function edgesForCodeFunctions(input: {
+  orgId?: string;
+  entryId: string;
+  filePath: string;
+  functions: CodeFunctionLike[];
+}): EdgeInput[] {
+  return input.functions.map((fn) => ({
+    org_id: input.orgId,
+    edge_type: "CONTAINS_FUNCTION" as const,
+    source_node_type: "FILE_CHANGE" as const,
+    source_node_id: input.entryId,
+    target_node_type: "CODE_FUNCTION" as const,
+    target_node_id: codeFunctionNodeId(input.filePath, fn.astAnchor),
+    metadata: {
+      name: fn.name,
+      kind: fn.kind,
+      startLine: fn.startLine,
+      endLine: fn.endLine,
+      language: fn.language,
+    },
+  }));
 }
 
 /** Paths #8 + #9 — kodela_record_decision (author/approvers + typed links). */

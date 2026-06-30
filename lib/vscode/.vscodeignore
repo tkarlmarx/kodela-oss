@@ -1,0 +1,13 @@
+# Keep the published .vsix small: ship only the bundled extension + assets.
+# The extension is bundled to dist/extension.cjs (esbuild), so source, deps,
+# tests, and build config are not needed at runtime.
+.vscode/**
+src/**
+node_modules/**
+**/*.ts
+**/*.map
+**/tsconfig*.json
+**/*.tsbuildinfo
+build.mjs
+.vscodeignore
+**/*.test.*

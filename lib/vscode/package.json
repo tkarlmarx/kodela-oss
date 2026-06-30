@@ -5,11 +5,29 @@
   "description": "Kodela VS Code extension — code context layer for the editor",
   "publisher": "kodela",
   "displayName": "Kodela",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tkarlmarx/kodela-oss"
+  },
+  "homepage": "https://github.com/tkarlmarx/kodela-oss#readme",
+  "bugs": "https://github.com/tkarlmarx/kodela-oss/issues",
+  "icon": "media/icon.png",
+  "keywords": [
+    "ai",
+    "context",
+    "memory",
+    "code-context",
+    "mcp",
+    "decisions",
+    "documentation"
+  ],
   "engines": {
     "vscode": "^1.90.0",
     "node": ">=20"
   },
   "categories": [
+    "AI",
     "Other"
   ],
   "activationEvents": [
@@ -367,11 +385,5 @@
     "@types/vscode": "^1.90.0",
     "esbuild": "^0.27.3",
     "tsx": "catalog:"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/tkarlmarx/kodela-oss"
-  },
-  "homepage": "https://github.com/tkarlmarx/kodela-oss#readme",
-  "bugs": "https://github.com/tkarlmarx/kodela-oss/issues"
+  }
 }

@@ -2,7 +2,7 @@
   "name": "kodela-oss",
   "version": "0.2.0",
   "private": true,
-  "license": "AGPL-3.0-only",
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "build": "pnpm run typecheck && pnpm -r --if-present run build",

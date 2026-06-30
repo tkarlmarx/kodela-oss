@@ -1,12 +1,12 @@
 # Contributing to Kodela
 
-Thanks for your interest! Kodela Community Edition is AGPL-3.0.
+Thanks for your interest! Kodela Community Edition is Apache-2.0.
 
 ## Development
 - Node 24+, pnpm 10+. `pnpm install` at the root.
 - `pnpm typecheck` — whole-workspace typecheck.
 - `pnpm test` — run tests.
-- New source files should carry an SPDX header (`// SPDX-License-Identifier: AGPL-3.0-only`).
+- New source files should carry an SPDX header (`// SPDX-License-Identifier: Apache-2.0`).
 
 ## Pull requests
 - Keep changes focused; include tests.
