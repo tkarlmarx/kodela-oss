@@ -19,6 +19,7 @@
  */
 import fs from "node:fs/promises";
 import path from "node:path";
+import { readDirectives, formatDirectivesBlock } from "@kodela/core/directives";
 import { readAllEntries } from "./status.js";
 
 export type MemoryBankOptions = {
@@ -235,6 +236,10 @@ async function generateSections(
   const dna = await readJson<Dna>(path.join(repoRoot, ".kodela", "dna", "project.json"));
   const pkg = await readJson<{ name?: string; description?: string }>(path.join(repoRoot, "package.json"));
   const entries = (await readAllEntries(repoRoot).catch(() => [])) as unknown as ContextLike[];
+  // Phase 1 — standing directives lead activeContext so every agent that reads
+  // the Memory Bank at task start honours them without being re-told.
+  const directives = await readDirectives(repoRoot).catch(() => []);
+  const directivesBlock = formatDirectivesBlock(directives);
 
   const name = pkg?.name ?? dna?.project ?? path.basename(repoRoot);
   const description = pkg?.description ?? "";
@@ -245,7 +250,7 @@ async function generateSections(
     generated: {
       "projectbrief.md": projectBrief(dna, name, description),
       "productContext.md": productContext(dna, description),
-      "activeContext.md": activeContext(entries),
+      "activeContext.md": (directivesBlock ? `${directivesBlock}\n` : "") + activeContext(entries),
       "systemPatterns.md": systemPatterns(dna),
       "techContext.md": techContext(dna),
       "progress.md": progress(entries),

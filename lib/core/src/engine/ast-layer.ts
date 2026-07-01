@@ -68,8 +68,15 @@ const FUNCTION_PATTERNS: Array<{
 // ---------------------------------------------------------------------------
 
 /**
- * Strip comments, collapse whitespace, and lower-case a code block for
+ * Strip comments, remove ALL whitespace, and lower-case a code block for
  * content-hash comparisons that survive reformatting.
+ *
+ * Whitespace is removed entirely (not merely collapsed) so a reformatter that
+ * adds or drops spaces inside expressions — `(!token)` vs `( !token )`,
+ * `startsWith("x")` vs `startsWith( "x" )` — still produces an identical body
+ * hash. This is the lowest-confidence (0.78) rename-detection tier, so favouring
+ * resilience over an infinitesimal collision risk is the right trade-off, and it
+ * matches the already-aggressive lower-casing on the same line.
  */
 function normaliseBody(lines: string[]): string {
   return lines
@@ -77,8 +84,7 @@ function normaliseBody(lines: string[]): string {
     .replace(/\/\/[^\n]*/g, "")
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/#[^\n]*/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
+    .replace(/\s+/g, "")
     .toLowerCase();
 }
 
@@ -211,27 +217,35 @@ function extractAstNodes(content: FileContent): AstNode[] {
       const match = pattern.exec(line);
       if (match !== null && match[1] !== undefined) {
         const name = match[1]!;
-        const startDepth = braceDepths[i] ?? 0;
+        // Depth the code sits at *before* this signature line. The signature
+        // line itself opens the function's brace (depth → depthBefore + 1), so
+        // the body stays above depthBefore until the matching closing brace
+        // returns to it. Using braceDepths[i] (the depth AFTER the signature)
+        // would compare the first body line against the already-incremented
+        // depth and terminate immediately, truncating multi-line bodies.
+        const depthBefore = i > 0 ? (braceDepths[i - 1] ?? 0) : 0;
 
-        // Walk forward to find the matching closing brace.
-        let endLine = i;
+        // Walk forward to the function's closing brace — the first line whose
+        // cumulative depth falls back to depthBefore.
+        let closeLine = lines.length - 1;
         for (let j = i + 1; j < lines.length; j++) {
-          if ((braceDepths[j] ?? 0) <= startDepth) {
-            endLine = j;
+          if ((braceDepths[j] ?? 0) <= depthBefore) {
+            closeLine = j;
             break;
           }
-          endLine = j;
         }
 
-        // Collect body lines (everything after the signature line).
-        const bodyLines = lines.slice(i + 1, endLine + 1);
+        // Body = the lines between the signature and the closing brace,
+        // EXCLUSIVE of the brace line — parity with the tree-sitter extractor
+        // (see extractAstNodesViaTreeSitter) so both hash identically.
+        const bodyLines = lines.slice(i + 1, closeLine);
         const paramCount = countParams(line);
 
         nodes.push({
           kind,
           name,
           startLine: i + 1,
-          endLine: endLine + 1,
+          endLine: closeLine + 1,
           bodyLines,
           paramCount,
         });

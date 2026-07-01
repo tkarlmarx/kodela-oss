@@ -21,6 +21,93 @@ import fs from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { readAllEntries } from "./status.js";
 import { runMetrics } from "./metrics.js";
+import { runComprehend } from "./comprehend.js";
+import { runTour } from "./tour.js";
+import { runArchitecture } from "./architecture.js";
+
+/**
+ * The "Understand" payload — comprehension + tour + architecture, all built from
+ * the CE engines (offline, no key). This is the *free* visual: the same
+ * understanding UA gives away, but with Kodela's captured *why* fused onto every
+ * node. Computed lazily (tree-sitter parsing is heavier than the base payload)
+ * and trimmed for the browser.
+ */
+export interface UnderstandData {
+  comprehension: {
+    stats: { files: number; classes: number; functions: number; documented: number; coverage: number };
+    files: Array<{
+      filePath: string;
+      description: string;
+      riskLevel: string;
+      whys: Array<{ note: string; severity: string }>;
+      children: Array<{ kind: string; name: string; description: string; riskLevel: string; decisions: Array<{ title: string; status: string }> }>;
+    }>;
+  };
+  tour: {
+    stats: { stops: number; withWhy: number };
+    stops: Array<{ order: number; title: string; filePath: string; description: string; rationale: string; riskLevel: string; inboundCount: number; whys: Array<{ note: string }>; decisions: Array<{ title: string; status: string }> }>;
+  };
+  architecture: {
+    stats: { files: number; layers: number; domains: number };
+    layers: Array<{ layer: string; fileCount: number; highestRisk: string }>;
+    domains: Array<{ domain: string; fileCount: number }>;
+    layerEdges: Array<{ from: string; to: string; weight: number }>;
+  };
+}
+
+/** Build the free "Understand" payload from the CE engines. Bounded for the browser. */
+export async function loadUnderstandData(repoRoot: string): Promise<UnderstandData> {
+  const [comp, tour, arch] = await Promise.all([
+    runComprehend({ repoRoot, maxFiles: 250 }).catch(() => null),
+    runTour({ repoRoot, maxStops: 12 }).catch(() => null),
+    runArchitecture({ repoRoot }).catch(() => null),
+  ]);
+
+  const childrenByFile = new Map<string, UnderstandData["comprehension"]["files"][number]["children"]>();
+  const fileNodes: UnderstandData["comprehension"]["files"] = [];
+  if (comp) {
+    for (const n of comp.graph.nodes) {
+      if (n.kind === "file") continue;
+      const list = childrenByFile.get(n.filePath) ?? [];
+      list.push({ kind: n.kind, name: n.name, description: n.description, riskLevel: n.riskLevel, decisions: n.decisions.map((d) => ({ title: d.title, status: d.status })) });
+      childrenByFile.set(n.filePath, list);
+    }
+    for (const n of comp.graph.nodes) {
+      if (n.kind !== "file") continue;
+      const children = childrenByFile.get(n.filePath) ?? [];
+      if (children.length === 0 && n.whys.length === 0) continue;
+      fileNodes.push({
+        filePath: n.filePath,
+        description: n.description,
+        riskLevel: n.riskLevel,
+        whys: n.whys.map((w) => ({ note: w.note, severity: w.severity })),
+        children: children.slice(0, 30),
+      });
+    }
+  }
+
+  return {
+    comprehension: {
+      stats: comp?.graph.stats ?? { files: 0, classes: 0, functions: 0, documented: 0, coverage: 0 },
+      files: fileNodes.slice(0, 200),
+    },
+    tour: {
+      stats: tour?.tour.stats ?? { stops: 0, withWhy: 0 },
+      stops: (tour?.tour.stops ?? []).map((s) => ({
+        order: s.order, title: s.title, filePath: s.filePath, description: s.description,
+        rationale: s.rationale, riskLevel: s.riskLevel, inboundCount: s.inboundCount,
+        whys: s.whys.slice(0, 2).map((w) => ({ note: w.note })),
+        decisions: s.decisions.map((d) => ({ title: d.title, status: d.status })),
+      })),
+    },
+    architecture: {
+      stats: arch?.map.stats ?? { files: 0, layers: 0, domains: 0 },
+      layers: (arch?.map.layers ?? []).map((l) => ({ layer: l.layer, fileCount: l.fileCount, highestRisk: l.highestRisk })),
+      domains: (arch?.map.domains ?? []).slice(0, 12),
+      layerEdges: (arch?.map.layerEdges ?? []).slice(0, 18),
+    },
+  };
+}
 
 export type UiOptions = {
   repoRoot: string;
@@ -135,8 +222,9 @@ export interface FusedLink {
  *  - **decision** nodes linked to the files that implement them (**implements**),
  *    sourced from the fused graph's `IMPLEMENTS` edges (file_change -> decision).
  *
- * Single-repo, read-only — the free tier of the graph. (Time-travel, code-graph
- * AST fusion, and path-finding stay in the commercial dashboard.)
+ * Single-repo, read-only — the free tier of the graph. (The comprehension /
+ * tour / architecture views are also free, on the Understand tab; team hosting,
+ * personas, time-travel and path-finding stay in the commercial dashboard.)
  */
 function buildGraph(
   files: UiFile[],
@@ -480,6 +568,27 @@ export function buildUiHtml(): string {
   .opt .ochosen { color: #15803d; font-size: 11px; font-weight: 700; text-transform: uppercase; margin-left: 6px; }
   .opt .orej { color: #b91c1c; font-size: 12px; margin-top: 2px; } .opt .od { color: #6b7280; font-size: 13px; }
   .dtags { margin-top: 10px; } .dtag { display: inline-block; font-size: 11px; color: #6b7280; background: #f3f4f6; border-radius: 999px; padding: 1px 8px; margin-right: 5px; }
+  /* Understand tab — free visual comprehension / tour / architecture */
+  .u-sec { max-width: 900px; margin: 0 0 28px; }
+  .u-sec h2 { font-size: 17px; color: #111827; margin: 6px 0 12px; }
+  .u-sub { font-size: 12px; color: #6b7280; font-weight: 400; }
+  .u-file { border: 1px solid #e5e7eb; border-radius: 10px; margin-bottom: 10px; overflow: hidden; background: #fff; }
+  .u-fh { padding: 8px 12px; }
+  .u-fh code { font-family: ui-monospace, monospace; font-size: 12.5px; color: #b35a0f; }
+  .u-desc { color: #4b5563; font-size: 13px; margin: 3px 0; }
+  .u-why { color: #3f7d3f; font-size: 12px; margin: 2px 0; }
+  .u-dec { color: #b35a0f; font-size: 12px; margin: 1px 0; }
+  .u-node { padding: 6px 12px 6px 22px; border-top: 1px solid #f1f5f9; }
+  .u-node b { font-size: 13px; color: #111827; } .u-dot { font-size: 11px; }
+  .u-stop { padding: 8px 0 10px 12px; margin-bottom: 8px; }
+  .u-stop code { font-family: ui-monospace, monospace; font-size: 12px; color: #b35a0f; }
+  .u-imp { font-size: 11px; color: #6b7280; } .u-rat { color: #6b7280; font-size: 12px; font-style: italic; margin: 2px 0; }
+  .u-bar-row { display: flex; align-items: center; gap: 10px; margin: 5px 0; }
+  .u-bar-lbl { width: 180px; font-size: 13px; color: #374151; } .u-bar-n { width: 44px; text-align: right; color: #6b7280; font-size: 12px; }
+  .u-bar { flex: 1; height: 8px; background: #eef2f7; border-radius: 4px; overflow: hidden; }
+  .u-bar-fill { display: block; height: 100%; }
+  .u-edges { margin-top: 12px; font-size: 12px; color: #4b5563; }
+  .u-edge { display: inline-block; background: #f3f4f6; border-radius: 6px; padding: 2px 8px; margin: 3px 4px 0 0; } .u-edge i { color: #9ca3af; }
   /* Help tab */
   .help { max-width: 820px; }
   .help h2 { font-size: 16px; color: #111827; margin: 22px 0 8px; }
@@ -502,6 +611,7 @@ export function buildUiHtml(): string {
   <p class="stack" id="stack"></p>
   <div class="controls">
     <button class="tab active" data-tab="files">Files</button>
+    <button class="tab" data-tab="understand">Understand</button>
     <button class="tab" data-tab="graph">Graph</button>
     <button class="tab" data-tab="decisions">Decisions</button>
     <button class="tab" data-tab="timeline">Timeline</button>
@@ -522,7 +632,64 @@ export function buildUiHtml(): string {
 <script>
 (function () {
   var DATA = null, tab = "files", sev = "all", term = "", graphRaf = null;
+  var UNDERSTAND = null, uLoading = false, uErr = null;
   var esc = function (s) { return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); };
+  var RISKC = { critical: "#dc2626", high: "#ea580c", medium: "#d97706", low: "#65a30d", none: "#cbd5e1" };
+
+  function loadUnderstand() {
+    uLoading = true; uErr = null;
+    fetch("/api/understand").then(function (r) { return r.json(); }).then(function (d) {
+      uLoading = false;
+      if (d && d.error) { uErr = d.error; } else { UNDERSTAND = d; }
+      if (tab === "understand") render();
+    }).catch(function (e) { uLoading = false; uErr = String(e); if (tab === "understand") render(); });
+  }
+
+  function renderUnderstand() {
+    if (uErr) return '<p class="empty">Could not build the understanding view: ' + esc(uErr) + '</p>';
+    if (!UNDERSTAND) return '<p class="empty">Building comprehension, tour and architecture from your code — this parses the repo, so it takes a moment…</p>';
+    var U = UNDERSTAND, h = "";
+    // ── Comprehension ──
+    var cs = U.comprehension.stats;
+    h += '<div class="u-sec"><h2>Comprehension <span class="u-sub">' + cs.files + ' files · ' + cs.functions + ' functions · ' + Math.round((cs.coverage||0)*100) + '% carry captured why</span></h2>';
+    if (!U.comprehension.files.length) h += '<p class="empty">No source parsed yet — capture some context, then reopen.</p>';
+    U.comprehension.files.forEach(function (f) {
+      h += '<div class="u-file"><div class="u-fh" style="border-left:3px solid ' + (RISKC[f.riskLevel]||RISKC.none) + '"><code>' + esc(f.filePath) + '</code><div class="u-desc">' + esc(f.description) + '</div>';
+      f.whys.forEach(function (w) { h += '<div class="u-why">↳ ' + esc(w.note) + '</div>'; });
+      h += '</div>';
+      f.children.forEach(function (c) {
+        h += '<div class="u-node"><span class="u-dot" style="color:' + (RISKC[c.riskLevel]||RISKC.none) + '">●</span> <b>' + esc(c.kind) + ' ' + esc(c.name) + '</b><div class="u-desc">' + esc(c.description) + '</div>';
+        c.decisions.forEach(function (d) { h += '<div class="u-dec">◆ ' + esc(d.title) + ' (' + esc(d.status) + ')</div>'; });
+        h += '</div>';
+      });
+      h += '</div>';
+    });
+    h += '</div>';
+    // ── Guided tour ──
+    var ts = U.tour.stats;
+    h += '<div class="u-sec"><h2>Guided tour <span class="u-sub">' + ts.stops + ' stops · ' + ts.withWhy + ' carry captured why</span></h2>';
+    U.tour.stops.forEach(function (s) {
+      h += '<div class="u-stop" style="border-left:3px solid ' + (RISKC[s.riskLevel]||RISKC.none) + '"><b>' + s.order + '. ' + esc(s.title) + '</b> <code>' + esc(s.filePath) + '</code>' + (s.inboundCount ? ' <span class="u-imp">← ' + s.inboundCount + ' importers</span>' : '') + '<div class="u-desc">' + esc(s.description) + '</div><div class="u-rat"><i>Why here:</i> ' + esc(s.rationale) + '</div>';
+      s.whys.forEach(function (w) { h += '<div class="u-why">↳ ' + esc(w.note) + '</div>'; });
+      s.decisions.forEach(function (d) { h += '<div class="u-dec">◆ ' + esc(d.title) + ' (' + esc(d.status) + ')</div>'; });
+      h += '</div>';
+    });
+    h += '</div>';
+    // ── Architecture ──
+    var as = U.architecture.stats, maxL = 1;
+    U.architecture.layers.forEach(function (l) { if (l.fileCount > maxL) maxL = l.fileCount; });
+    h += '<div class="u-sec"><h2>Architecture <span class="u-sub">' + as.files + ' files · ' + as.layers + ' layers · ' + as.domains + ' domains</span></h2>';
+    U.architecture.layers.forEach(function (l) {
+      h += '<div class="u-bar-row"><span class="u-bar-lbl">' + esc(l.layer) + (l.highestRisk !== "none" ? ' <span style="color:' + (RISKC[l.highestRisk]||RISKC.none) + ';font-size:11px">● ' + esc(l.highestRisk) + '</span>' : '') + '</span><span class="u-bar"><span class="u-bar-fill" style="width:' + Math.round((l.fileCount/maxL)*100) + '%;background:' + (RISKC[l.highestRisk] && l.highestRisk !== "none" ? RISKC[l.highestRisk] : "var(--brand)") + '"></span></span><span class="u-bar-n">' + l.fileCount + '</span></div>';
+    });
+    if (U.architecture.layerEdges.length) {
+      h += '<div class="u-edges"><b>Layer dependencies:</b> ';
+      U.architecture.layerEdges.forEach(function (e) { h += '<span class="u-edge">' + esc(e.from) + ' → ' + esc(e.to) + ' <i>×' + e.weight + '</i></span>'; });
+      h += '</div>';
+    }
+    h += '</div>';
+    return h;
+  }
 
   function matchEntry(file, e) {
     if (sev !== "all" && e.severity !== sev) return false;
@@ -877,6 +1044,7 @@ export function buildUiHtml(): string {
   function render() {
     if (graphRaf) { cancelAnimationFrame(graphRaf); graphRaf = null; }
     var main = document.getElementById("main");
+    if (tab === "understand") { main.innerHTML = renderUnderstand(); if (!UNDERSTAND && !uLoading) loadUnderstand(); return; }
     main.innerHTML = tab === "files" ? renderFiles() : tab === "graph" ? renderGraph()
       : tab === "decisions" ? renderDecisions()
       : tab === "timeline" ? renderTimeline() : tab === "help" ? renderHelp() : renderHealth();
@@ -935,10 +1103,28 @@ export function serveUi(
 ): http.Server {
   const html = buildUiHtml();
   let cache: { json: string; at: number } | null = null;
+  // The Understand payload is heavier (tree-sitter parsing), so it gets its own
+  // longer-lived cache and is only computed when the Understand tab is opened.
+  let understandCache: { json: string; at: number } | null = null;
   const server = http.createServer((req, res) => {
     if (req.method !== "GET") {
       res.writeHead(405, { "content-type": "text/plain" });
       res.end("Method Not Allowed — kodela ui is read-only.");
+      return;
+    }
+    if ((req.url ?? "/").startsWith("/api/understand")) {
+      void (async () => {
+        try {
+          if (!understandCache || Date.now() - understandCache.at > 30_000) {
+            understandCache = { json: JSON.stringify(await loadUnderstandData(repoRoot)), at: Date.now() };
+          }
+          res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+          res.end(understandCache.json);
+        } catch (err) {
+          res.writeHead(500, { "content-type": "application/json" });
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        }
+      })();
       return;
     }
     if ((req.url ?? "/").startsWith("/api/data")) {

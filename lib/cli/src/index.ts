@@ -43,6 +43,27 @@ export { runDiff, formatDiffResult, runFileAnalysis, formatFileAnalysisResult } 
 export type { BlameOptions, BlameResult, BlameLine } from "./commands/blame.js";
 export { runBlame, formatBlameResult } from "./commands/blame.js";
 
+export type { SearchOptions, SearchResult, SearchHit } from "./commands/search.js";
+export { runSearch, formatSearchResult } from "./commands/search.js";
+
+export type { RecallOptions, RecallResult } from "./commands/recall.js";
+export { runRecall } from "./commands/recall.js";
+
+export type { HygieneOptions, HygieneRunResult } from "./commands/hygiene.js";
+export { runHygiene, formatHygieneResult } from "./commands/hygiene.js";
+
+export type { ComprehendOptions, ComprehendResult } from "./commands/comprehend.js";
+export { runComprehend, formatComprehendResult } from "./commands/comprehend.js";
+
+export type { TourOptions, TourResult } from "./commands/tour.js";
+export { runTour, formatTourResult } from "./commands/tour.js";
+
+export type { ImpactOptions, ImpactRunResult } from "./commands/impact.js";
+export { runImpact, formatImpactResult } from "./commands/impact.js";
+
+export type { ArchitectureCliOptions, ArchitectureRunResult } from "./commands/architecture.js";
+export { runArchitecture, formatArchitectureResult } from "./commands/architecture.js";
+
 export type { AnnotateOptions, AnnotateResult, AnnotateLine } from "./commands/annotate.js";
 export { runAnnotate, formatAnnotateResult } from "./commands/annotate.js";
 

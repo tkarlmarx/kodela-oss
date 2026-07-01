@@ -17,6 +17,12 @@ import { runStatus } from "./commands/status.js";
 import { runAdd } from "./commands/add.js";
 import { runExplain, formatExplainResult, formatExplainShare } from "./commands/explain.js";
 import { runCorrect, formatCorrectResult } from "./commands/correct.js";
+import {
+  runDirectiveAdd,
+  runDirectiveList,
+  runDirectiveRemove,
+  formatDirectiveList,
+} from "./commands/directive.js";
 import { runEnrich, formatEnrichResult } from "./commands/enrich.js";
 import { runHandoff } from "./commands/handoff.js";
 import { runHeal, formatHealResult } from "./commands/heal.js";
@@ -64,6 +70,13 @@ import {
   runSearch,
   formatSearchResult,
 } from "./commands/search.js";
+import { runRecall } from "./commands/recall.js";
+import { runHygiene, formatHygieneResult } from "./commands/hygiene.js";
+import type { HygieneSeverity } from "@kodela/core/hygiene";
+import { runComprehend, formatComprehendResult } from "./commands/comprehend.js";
+import { runTour, formatTourResult } from "./commands/tour.js";
+import { runImpact, formatImpactResult } from "./commands/impact.js";
+import { runArchitecture, formatArchitectureResult } from "./commands/architecture.js";
 import {
   runExport,
   formatExportResult,
@@ -1326,6 +1339,10 @@ program
     "--semantic",
     "Gap 47 — Use natural-language semantic search (cosine similarity over embeddings) instead of keyword matching. Falls back to keyword search when no embeddings are stored or no API key is configured.",
   )
+  .option(
+    "--no-rerank",
+    "Phase 0 — Skip the offline relevance reranker and show the raw keyword/cosine order. The reranker is on by default (offline, no key).",
+  )
   .action(
     async (
       query: string,
@@ -1337,6 +1354,7 @@ program
         limit: string;
         output: string;
         semantic?: boolean;
+        rerank?: boolean;
       },
     ) => {
       const repoRoot = await findRepoRoot(process.cwd());
@@ -1367,6 +1385,7 @@ program
           limit: parseInt(opts.limit, 10),
           semantic: opts.semantic ?? false,
           embeddingConfig,
+          rerank: opts.rerank ?? true,
         });
         process.stdout.write(formatSearchResult(result, output) + "\n");
         process.exit(0);
@@ -1378,6 +1397,275 @@ program
       }
     },
   );
+
+// Phase 1 — standing directives (auto-loaded into the Memory Bank).
+const directiveCmd = program
+  .command("directive")
+  .description("Manage standing directives — instructions every AI session should honour.");
+directiveCmd
+  .command("add <text>")
+  .description("Add a standing directive, e.g. \"Always sign commits with GPG\".")
+  .option("--scope <scope>", "Where it applies: global (default) or a repo-relative path/glob")
+  .action(async (text: string, opts: { scope?: string }) => {
+    const repoRoot = await findRepoRoot(process.cwd());
+    const d = await runDirectiveAdd(repoRoot, text, opts.scope ? { scope: opts.scope } : {});
+    process.stdout.write(`Added directive ${d.id}: ${d.text}\n`);
+    process.exit(0);
+  });
+directiveCmd
+  .command("list")
+  .description("List standing directives.")
+  .action(async () => {
+    const repoRoot = await findRepoRoot(process.cwd());
+    process.stdout.write(formatDirectiveList(await runDirectiveList(repoRoot)) + "\n");
+    process.exit(0);
+  });
+directiveCmd
+  .command("rm <id>")
+  .description("Remove a standing directive by id.")
+  .action(async (id: string) => {
+    const repoRoot = await findRepoRoot(process.cwd());
+    const removed = await runDirectiveRemove(repoRoot, id);
+    process.stdout.write(removed ? `Removed directive ${id}.\n` : `No directive with id ${id}.\n`);
+    process.exit(removed ? 0 : 1);
+  });
+
+// Phase 1 — automatic recall injection.
+// `kodela recall "<topic>"` returns the most relevant prior *why* as a
+// ready-to-paste markdown block, ranked by the Phase-0 reranker. With no query
+// it auto-recalls for the current task using the latest session goal, so a hook
+// or agent can inject relevant memory at the start of a session.
+program
+  .command("recall")
+  .description(
+    "Recall the most relevant prior context as an injectable markdown block.\n" +
+    "  With a query: `kodela recall \"token rotation\"`.\n" +
+    "  With no query: auto-recalls for the current task from the latest session goal.\n" +
+    "  Ranked by the offline Phase-0 reranker; safe to paste into any AI session.",
+  )
+  .argument("[query...]", "What to recall (space-separated). Omit to auto-recall for the current task.")
+  .option("--limit <n>", "Max items to recall (default 8)", "8")
+  .option("--no-semantic", "Use keyword retrieval instead of semantic (embedding) retrieval")
+  .option("-o, --output <format>", "Output format: text (markdown block) or json", "text")
+  .action(async (query: string[], opts: { limit: string; semantic: boolean; output: string }) => {
+    const repoRoot = await findRepoRoot(process.cwd());
+    const joined = query.join(" ").trim();
+    try {
+      const result = await runRecall({
+        repoRoot,
+        query: joined || undefined,
+        limit: parseInt(opts.limit, 10),
+        semantic: opts.semantic,
+      });
+      if (opts.output === "json") {
+        process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+      } else {
+        process.stdout.write(result.block + "\n");
+      }
+      process.exit(0);
+    } catch (err) {
+      process.stderr.write(
+        `Error: ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+      process.exit(1);
+    }
+  });
+
+// Phase 2 — comprehension graph (P2.1). Builds a file→class→function graph with
+// plain-English descriptions, each node fused with the captured why.
+program
+  .command("comprehend")
+  .description(
+    "Build a comprehension graph — files, classes and functions with plain-English\n" +
+    "  descriptions, each fused with the captured *why* that overlaps it. Offline\n" +
+    "  (no API key). Use --file to scope to a path, --documented for only nodes\n" +
+    "  with captured context.",
+  )
+  .option("--file <path>", "Restrict to files whose path includes this substring")
+  .option("--max-files <n>", "Max source files to parse (default 400)", "400")
+  .option("--documented", "Only show nodes that carry captured why/decisions", false)
+  .option("-o, --output <format>", "Output format: text, json", "text")
+  .action(async (opts: { file?: string; maxFiles: string; documented: boolean; output: string }) => {
+    const repoRoot = await findRepoRoot(process.cwd());
+    const output = opts.output === "json" ? "json" : "text";
+    try {
+      const result = await runComprehend({
+        repoRoot,
+        filter: opts.file,
+        maxFiles: parseInt(opts.maxFiles, 10),
+        documentedOnly: opts.documented,
+      });
+      process.stdout.write(formatComprehendResult(result, output) + "\n");
+      process.exit(0);
+    } catch (err) {
+      process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+      process.exit(1);
+    }
+  });
+
+// Phase 3 — architecture map (P3.1). Auto-derived technical layers + business
+// domains + the cross-layer dependency matrix, fused with captured risk.
+program
+  .command("architecture")
+  .alias("arch")
+  .description(
+    "Map the codebase into technical layers (API, UI, data, auth, core, …) and\n" +
+    "  business domains, with the captured risk per layer and the cross-layer\n" +
+    "  dependency matrix. Refine the heuristics with .kodela/architecture.json\n" +
+    "  ({ rules?, domains? }).",
+  )
+  .option("-o, --output <format>", "Output format: text, json", "text")
+  .action(async (opts: { output: string }) => {
+    const repoRoot = await findRepoRoot(process.cwd());
+    const output = opts.output === "json" ? "json" : "text";
+    try {
+      const result = await runArchitecture({ repoRoot });
+      process.stdout.write(formatArchitectureResult(result, output) + "\n");
+      process.exit(0);
+    } catch (err) {
+      process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+      process.exit(1);
+    }
+  });
+
+// Phase 2 — diff impact (P2.3). Structural blast-radius fused with the
+// decision/risk blast-radius; --ci gates a commit that touches load-bearing code.
+program
+  .command("impact")
+  .description(
+    "Show the blast radius of a change — the files that (transitively) import what\n" +
+    "  you changed, fused with the captured why/decisions/risk across that radius.\n" +
+    "  With no file args it uses `git diff` vs --base. --ci fails when the radius\n" +
+    "  touches high/critical-risk code (read the why before you touch it).",
+  )
+  .argument("[files...]", "Changed files to analyse (default: git diff vs --base)")
+  .option("--base <ref>", "Git ref to diff against when no files are given", "HEAD")
+  .option("--max-depth <n>", "Dependency hops to follow (default 2)", "2")
+  .option("--ci", "Exit non-zero when the blast radius reaches --fail-on risk or worse", false)
+  .option("--fail-on <level>", "Risk level that fails --ci: low | medium | high | critical", "high")
+  .option("-o, --output <format>", "Output format: text, json", "text")
+  .action(async (files: string[], opts: { base: string; maxDepth: string; ci: boolean; failOn: string; output: string }) => {
+    const repoRoot = await findRepoRoot(process.cwd());
+    const output = opts.output === "json" ? "json" : "text";
+    try {
+      const result = await runImpact({
+        repoRoot,
+        files: files.length > 0 ? files : undefined,
+        base: opts.base,
+        maxDepth: parseInt(opts.maxDepth, 10),
+      });
+      process.stdout.write(formatImpactResult(result, output) + "\n");
+      if (opts.ci) {
+        const order = ["none", "low", "medium", "high", "critical"];
+        const floor = Math.max(0, order.indexOf(opts.failOn));
+        if (order.indexOf(result.report.highestRisk) >= floor && floor > 0) {
+          process.stderr.write(
+            `Blast radius reaches ${result.report.highestRisk}-risk code (>= ${opts.failOn}). Read the captured why before committing.\n`,
+          );
+          process.exit(1);
+        }
+      }
+      process.exit(0);
+    } catch (err) {
+      process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+      process.exit(1);
+    }
+  });
+
+// Phase 2 — guided tours (P2.2). A dependency-ordered onboarding walkthrough
+// that weaves in the captured decisions/risk on each module.
+program
+  .command("tour")
+  .description(
+    "Generate a guided onboarding tour — foundational modules first, each stop\n" +
+    "  weaving in the captured *why* (decisions/risk) behind it. Markdown by default\n" +
+    "  (paste into an onboarding doc). --documented tours only the modules with\n" +
+    "  captured context; --file scopes to a path.",
+  )
+  .option("--file <path>", "Restrict the tour to files whose path includes this substring")
+  .option("--max-stops <n>", "Max tour stops (default 12)", "12")
+  .option("--documented", "Only include modules that carry captured why/decisions", false)
+  .option("--name <name>", "Project name to show in the tour heading")
+  .option("--language <lang>", "Language for the generated scaffolding: en, es, fr, de, pt", "en")
+  .option("-o, --output <format>", "Output format: text (markdown) or json", "text")
+  .action(async (opts: { file?: string; maxStops: string; documented: boolean; name?: string; language: string; output: string }) => {
+    const repoRoot = await findRepoRoot(process.cwd());
+    const output = opts.output === "json" ? "json" : "text";
+    try {
+      const result = await runTour({
+        repoRoot,
+        filter: opts.file,
+        maxStops: parseInt(opts.maxStops, 10),
+        documentedOnly: opts.documented,
+        projectName: opts.name,
+        language: opts.language,
+      });
+      process.stdout.write(formatTourResult(result, output) + "\n");
+      process.exit(0);
+    } catch (err) {
+      process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+      process.exit(1);
+    }
+  });
+
+// Phase 1 — memory hygiene (P1.3). Surfaces memory that has gone bad and, in
+// --ci mode, fails the build when the health score drops below a threshold.
+program
+  .command("hygiene")
+  .description(
+    "Scan captured memory for hygiene issues and print a ranked health report.\n" +
+    "  Flags orphaned/drifted mappings, review backlog, low-confidence and stale\n" +
+    "  entries, and overlapping (contradiction-candidate) annotations. Never mutates\n" +
+    "  memory — it tells you what to reconcile. Use --ci --min-score to gate a build.",
+  )
+  .option("--stale-days <n>", "Entries untouched for more than N days are stale (default 180)", "180")
+  .option("--min-confidence <n>", "Confidence below this is flagged low-confidence (default 0.5)", "0.5")
+  .option("--min-severity <level>", "Only show issues of this severity or worse: low | medium | high")
+  .option("--limit <n>", "Max issues to print (default 50)", "50")
+  .option("--ci", "Exit non-zero when the health score is below --min-score", false)
+  .option("--min-score <n>", "Minimum acceptable health score in --ci mode (default 80)", "80")
+  .option("-o, --output <format>", "Output format: text, json", "text")
+  .action(async (opts: {
+    staleDays: string;
+    minConfidence: string;
+    minSeverity?: string;
+    limit: string;
+    ci: boolean;
+    minScore: string;
+    output: string;
+  }) => {
+    const repoRoot = await findRepoRoot(process.cwd());
+    const output = opts.output === "json" ? "json" : "text";
+    const validSeverities = ["low", "medium", "high"] as const;
+    const minSeverity = validSeverities.includes(opts.minSeverity as HygieneSeverity)
+      ? (opts.minSeverity as HygieneSeverity)
+      : undefined;
+    try {
+      const result = await runHygiene({
+        repoRoot,
+        staleDays: parseInt(opts.staleDays, 10),
+        minConfidence: parseFloat(opts.minConfidence),
+        minSeverity,
+        limit: parseInt(opts.limit, 10),
+      });
+      process.stdout.write(formatHygieneResult(result, output) + "\n");
+      if (opts.ci) {
+        const minScore = parseInt(opts.minScore, 10);
+        if (result.report.healthScore < minScore) {
+          process.stderr.write(
+            `Memory health ${result.report.healthScore} is below the required ${minScore}.\n`,
+          );
+          process.exit(1);
+        }
+      }
+      process.exit(0);
+    } catch (err) {
+      process.stderr.write(
+        `Error: ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+      process.exit(1);
+    }
+  });
 
 program
   .command("export")

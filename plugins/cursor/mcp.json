@@ -1,0 +1,9 @@
+{
+  "$comment": "Kodela MCP server for Cursor. Copy this into your project's .cursor/mcp.json (or merge the kodela entry into an existing one), then reload Cursor. Requires the @kodela/cli npm package on PATH (npx fetches it). See ../README.md.",
+  "mcpServers": {
+    "kodela": {
+      "command": "npx",
+      "args": ["-y", "@kodela/cli", "mcp", "serve"]
+    }
+  }
+}

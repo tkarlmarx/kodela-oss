@@ -115,3 +115,39 @@ describe("runMemoryBank", () => {
     assert.doesNotThrow(() => JSON.parse(formatMemoryBankResult(result, "json")));
   });
 });
+
+// ── Phase 1 — standing directives are injected into the Memory Bank ──────────
+import { renderMemoryBank } from "./memory-bank.js";
+import { addDirective } from "@kodela/core/directives";
+
+describe("Memory Bank — standing directives injection", () => {
+  let tmp: string;
+  before(async () => {
+    tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kodela-mb-dir-"));
+    await fs.writeFile(path.join(tmp, "package.json"), JSON.stringify({ name: "demo" }));
+    await addDirective(tmp, "Always sign commits with GPG", { createdAt: "2026-06-01T00:00:00.000Z" });
+  });
+  after(async () => {
+    await fs.rm(tmp, { recursive: true, force: true });
+  });
+
+  test("activeContext.md leads with the standing directives", async () => {
+    const { files } = await renderMemoryBank(tmp);
+    const active = files.find((f) => f.file === "activeContext.md");
+    assert.ok(active, "activeContext.md is rendered");
+    assert.match(active!.content, /Standing directives/);
+    assert.match(active!.content, /Always sign commits with GPG/);
+  });
+
+  test("no directives → no directives heading (clean)", async () => {
+    const clean = await fs.mkdtemp(path.join(os.tmpdir(), "kodela-mb-nodir-"));
+    try {
+      await fs.writeFile(path.join(clean, "package.json"), JSON.stringify({ name: "demo" }));
+      const { files } = await renderMemoryBank(clean);
+      const active = files.find((f) => f.file === "activeContext.md");
+      assert.doesNotMatch(active!.content, /Standing directives/);
+    } finally {
+      await fs.rm(clean, { recursive: true, force: true });
+    }
+  });
+});

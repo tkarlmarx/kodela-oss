@@ -7,9 +7,37 @@ import path from "node:path";
 import os from "node:os";
 import http from "node:http";
 import { DatabaseSync } from "node:sqlite";
-import { loadUiData, buildUiHtml, serveUi, runUi, DEFAULT_UI_PORT } from "./ui.js";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { loadUiData, loadUnderstandData, buildUiHtml, serveUi, runUi, DEFAULT_UI_PORT } from "./ui.js";
 import { runInit } from "./init.js";
 import { runAdd } from "./add.js";
+
+const execFileAsync = promisify(execFile);
+
+describe("loadUnderstandData — free visual (kodela ui Understand tab)", () => {
+  let tmp: string;
+  before(async () => {
+    tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kodela-understand-"));
+    await fs.mkdir(path.join(tmp, "src", "auth"), { recursive: true });
+    await fs.writeFile(path.join(tmp, "src", "auth", "session.ts"), "export function rotate() { return 1; }\n");
+    await fs.writeFile(path.join(tmp, "src", "routes.ts"), "import { rotate } from './auth/session.js';\nexport const r = rotate;\n");
+    await execFileAsync("git", ["init", "-q"], { cwd: tmp });
+    await execFileAsync("git", ["add", "-A"], { cwd: tmp });
+  });
+  after(async () => { await fs.rm(tmp, { recursive: true, force: true }); });
+
+  test("returns a well-formed comprehension/tour/architecture payload without throwing", async () => {
+    const u = await loadUnderstandData(tmp);
+    // Architecture is derived from git + import scan (no tree-sitter needed).
+    assert.ok(u.architecture.stats.files >= 2, "architecture sees the source files");
+    assert.ok(u.architecture.layers.length >= 1, "at least one layer");
+    // Shape is intact even where tree-sitter grammars are unavailable.
+    assert.ok(Array.isArray(u.comprehension.files));
+    assert.ok(Array.isArray(u.tour.stops));
+    assert.equal(typeof u.comprehension.stats.coverage, "number");
+  });
+});
 
 describe("buildUiHtml", () => {
   test("is a self-contained page that fetches the data endpoint", () => {

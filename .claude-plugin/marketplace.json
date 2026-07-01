@@ -1,0 +1,16 @@
+{
+  "$schema": "https://code.claude.com/schemas/marketplace.json",
+  "name": "kodela",
+  "owner": {
+    "name": "The Kodela Authors",
+    "url": "https://github.com/rudratic-cyber/kodela"
+  },
+  "description": "Kodela — the system of record for the *why* behind code changes. Captures why every change happened, turns it into a queryable memory graph, and surfaces it to humans and AI agents.",
+  "plugins": [
+    {
+      "name": "kodela",
+      "source": "./plugins/kodela",
+      "description": "Kodela MCP server — capture, recall, comprehension, diff-impact and architecture tools for any Claude Code session."
+    }
+  ]
+}

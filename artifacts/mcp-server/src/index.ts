@@ -88,6 +88,11 @@ import {
   formatQueryResponse,
 } from "./tools/query.js";
 import {
+  recallForMcp,
+  RecallInputSchema,
+  formatRecallResponse,
+} from "./tools/recall.js";
+import {
   getWhyForMcp,
   GetWhyInputSchema,
   formatGetWhyResponse,
@@ -560,7 +565,29 @@ async function main(): Promise<void> {
       try {
         const parsed = SessionStartInputSchema.parse(input);
         const result = await sessionStart(repoRoot, parsed, backend);
-        return { content: [{ type: "text", text: formatSessionStartResponse(result) }] };
+
+        // Phase 1 — automatic recall injection. Best-effort: pull the most
+        // relevant prior *why* for the user's intent and attach it so the agent
+        // has related past decisions in context BEFORE writing any code. A
+        // recall failure (no index, no db) must never break session start, so
+        // it's fully guarded and only attached when something was actually
+        // recalled — no "nothing captured" noise on a fresh repo.
+        let recalledContext: string | undefined;
+        if (db) {
+          try {
+            const recall = await recallForMcp(repoRoot, { query: parsed.user_prompt, limit: 5 }, db);
+            if (recall.ok && (recall.items?.length ?? 0) > 0) {
+              recalledContext = recall.block;
+            }
+          } catch {
+            // Non-fatal — recall is an enhancement, not a precondition.
+          }
+        }
+
+        const payload = recalledContext
+          ? JSON.stringify({ ...result, recalledContext }, null, 2)
+          : formatSessionStartResponse(result);
+        return { content: [{ type: "text", text: payload }] };
       } catch (err) {
         return {
           content: [{ type: "text", text: `Error: ${err instanceof Error ? err.message : String(err)}` }],
@@ -874,6 +901,40 @@ async function main(): Promise<void> {
         const result = await queryForMcp(repoRoot, parsed, db);
         return {
           content: [{ type: "text", text: formatQueryResponse(result) }],
+          isError: !result.ok,
+        };
+      } catch (err) {
+        return {
+          content: [{ type: "text", text: `Error: ${err instanceof Error ? err.message : String(err)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // ── kodela_recall (Phase 1) — inject prior *why* at task start ────────────
+  server.tool(
+    "kodela_recall",
+    "Recall the most relevant prior context for a topic as a ready-to-paste " +
+    "markdown block, ranked by the offline reranker.\n\n" +
+    "Call this at the START of a task, before writing code, to pull the " +
+    "captured *why* of related past changes into your context.\n\n" +
+    "query (optional — omit to auto-recall for the current task from the latest " +
+    "session goal), file_path (optional — restrict to one file), limit (default 8).\n\n" +
+    "Returns { query, auto_query, items[], block }. `block` is the markdown you " +
+    "inject; `items` is the structured form. Always returns a block — an explicit " +
+    "'nothing captured' note rather than silence when there is no prior context.",
+    {
+      query:     RecallInputSchema.shape.query,
+      file_path: RecallInputSchema.shape.file_path,
+      limit:     RecallInputSchema.shape.limit,
+    },
+    async (input) => {
+      try {
+        const parsed = RecallInputSchema.parse(input);
+        const result = await recallForMcp(repoRoot, parsed, db);
+        return {
+          content: [{ type: "text", text: formatRecallResponse(result) }],
           isError: !result.ok,
         };
       } catch (err) {

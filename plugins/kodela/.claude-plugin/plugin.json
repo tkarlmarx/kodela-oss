@@ -1,0 +1,21 @@
+{
+  "$schema": "https://code.claude.com/schemas/plugin.json",
+  "name": "kodela",
+  "displayName": "Kodela",
+  "version": "0.1.0",
+  "description": "The system of record for the *why* behind code changes. Wires the Kodela MCP server into Claude Code so every session can capture the reasoning behind changes and recall the relevant prior why — plus comprehension, guided tours, diff-impact and architecture tools.",
+  "author": {
+    "name": "The Kodela Authors",
+    "url": "https://github.com/rudratic-cyber/kodela"
+  },
+  "homepage": "https://github.com/rudratic-cyber/kodela#readme",
+  "repository": "https://github.com/rudratic-cyber/kodela",
+  "license": "Apache-2.0",
+  "keywords": ["mcp", "memory", "context", "why", "decisions", "code-review", "onboarding"],
+  "mcpServers": {
+    "kodela": {
+      "command": "npx",
+      "args": ["-y", "@kodela/cli", "mcp", "serve"]
+    }
+  }
+}

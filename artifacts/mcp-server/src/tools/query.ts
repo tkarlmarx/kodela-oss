@@ -30,6 +30,7 @@ import {
   type ContextEntry,
 } from "@kodela/core";
 import { resolveEmbedder } from "@kodela/embed";
+import { featureRerank } from "@kodela/core/retrieval";
 import { searchDecisions } from "../lib/decisions-store.js";
 import { resolveDecisionDb, DECISION_DB_UNAVAILABLE } from "../lib/lazy-index.js";
 import { resolveOrgId } from "../lib/org-id.js";
@@ -295,6 +296,26 @@ export async function queryForMcp(
       const semRank = useRrf ? rankBy((c) => c.sem) : null;
       const MAX_RRF = 2 / (RRF_K + 1); // both rank-1 → 1.0 after normalisation
 
+      // Phase 0 — rerank the candidate entries with the offline feature blend
+      // (field-weighted lexical + exact-phrase + vector + recency + why-authority)
+      // and use that as the final entry score, so the best answer rises above a
+      // mere body-match. The keyword/semantic signal below still gates WHICH
+      // entries qualify; the reranker only decides their order.
+      const rerankById = new Map(
+        featureRerank(
+          input.query,
+          cands.map((c) => ({
+            id: c.entry.id,
+            text: c.entry.note,
+            fields: { tags: c.entry.tags, filePath: c.entry.filePath },
+            similarity: c.sem > 0 ? c.sem : undefined,
+            createdAt: c.entry.createdAt,
+            severity: c.entry.severity,
+            kind: "entry",
+          })),
+        ).map((r) => [r.id, r.score]),
+      );
+
       for (const { entry, kw, sem } of cands) {
         let score: number;
         if (useRrf) {
@@ -308,6 +329,8 @@ export async function queryForMcp(
           score = kw;
         }
         if (score <= 0) continue;
+        // Order by the richer rerank score, but keep the qualification gate above.
+        score = rerankById.get(entry.id) ?? score;
         results.push({
           kind: "entry",
           id: entry.id,

@@ -1,0 +1,10 @@
+{
+  "$comment": "Kodela MCP server for VS Code (GitHub Copilot / Agent mode). Copy the `servers` block into your VS Code settings.json (or .vscode/mcp.json). VS Code uses `servers`, not `mcpServers`. Reload the window afterwards. See ../README.md.",
+  "servers": {
+    "kodela": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@kodela/cli", "mcp", "serve"]
+    }
+  }
+}

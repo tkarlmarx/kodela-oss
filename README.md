@@ -110,6 +110,34 @@ and the trend, and how often a session reuses prior memory.
 
 <p align="center"><img src="assets/ui-health.png" alt="Memory-health metrics: captured changes, captures per session, and reuse" width="820"></p>
 
+## Understand any codebase — structure *fused with the why*
+
+Other tools can draw your repo's structure. Kodela draws it **and hangs the
+recorded reasons on it** — the decision, the risk, the why. Every command below
+runs **offline in the CLI (no API key)**, so it's all in the community edition —
+and renders visually in `kodela ui` too.
+
+**Ask your memory in plain language.** Retrieval is **reranked on-device** (a
+field-aware blend of similarity + exact-phrase + recency + decision weight), and
+every result shows *why* it ranked where it did — not a black box.
+
+<p align="center"><img src="assets/ask-kodela.png" alt="Ask Kodela — a plain-language query returns reranked results, each with its relevance score, the full captured why, and the signal breakdown that explains the ranking" width="820"></p>
+
+- **`kodela comprehend`** — a file → class → function map, each node fused with the captured why and the decision that shaped it.
+- **`kodela tour`** — a dependency-ordered onboarding walkthrough; localize it with `--language`.
+- **`kodela impact [files…]`** — a change's blast radius on *both* axes: what transitively imports it **and** the decisions/risk in that radius. `--ci --fail-on high` makes it a gate.
+- **`kodela architecture`** — auto-derived technical layers + business domains + the cross-layer dependency matrix, with the risk each layer carries.
+- **`kodela recall [topic]`** — the most relevant prior why as a paste-ready block; no topic → auto-recall for the current task.
+- **`kodela hygiene`** — a memory-health score plus the orphaned / drifted / stale / overlapping entries to reconcile.
+
+<p align="center"><img src="assets/comprehension.png" alt="Comprehension — a file→class→function tree with plain-English descriptions, each node fused with the captured why and the decision that shaped it" width="820"></p>
+
+<p align="center"><img src="assets/guided-tour.png" alt="Guided Tour — a dependency-ordered onboarding walkthrough with decisions and risk woven into each stop" width="820"></p>
+
+<p align="center"><img src="assets/diff-impact.png" alt="Diff Impact — a change's structural blast radius fused with the decisions and risk in play" width="820"></p>
+
+<p align="center"><img src="assets/architecture.png" alt="Architecture — auto-derived technical layers and business domains with risk per layer and the cross-layer dependency flow" width="820"></p>
+
 ## Features
 
 - 🧠 **Structured capture** — actor (human or which AI tool), the problem solved, the reasoning, rejected alternatives, and a risk rating — not free-text notes.

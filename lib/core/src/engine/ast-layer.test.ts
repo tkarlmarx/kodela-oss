@@ -179,7 +179,10 @@ describe("buildAstFingerprint", () => {
     const withComment = "// Added a top-level comment\n" + ORIGINAL_FILE;
     const fp1 = buildAstFingerprint(ORIGINAL_FILE);
     const fp2 = buildAstFingerprint(withComment);
-    assert.notEqual(fp1, fp2, "fingerprint includes node names regardless of comments");
+    // The fingerprint is built from kind:name signatures only, so a comment-only
+    // change (which adds no functions) leaves it unchanged — that is exactly the
+    // stability this test's name promises.
+    assert.equal(fp1, fp2, "fingerprint depends on node signatures, not comments");
   });
 });
 
@@ -550,7 +553,10 @@ export async function checkToken(token: string): Promise<boolean> {
   });
 
   test("returns the highest-confidence match when multiple files match", () => {
-    // One file has the function by exact name (0.87), another by body hash only (0.78).
+    // One file still has the function under its original name — the entry's
+    // blockHash (hashAstSignature("function","validateToken")) matches it at the
+    // exact blockHash tier (0.95). Another file has it renamed, matchable only by
+    // body hash (0.78). The higher-confidence blockHash match must win.
     const EXACT_NAME_FILE = `
 export async function validateToken(token: string): Promise<boolean> {
   if (!token) return false;
@@ -573,8 +579,8 @@ export async function checkToken(token: string): Promise<boolean> {
     const testEntry = buildEntryWithBodyHash("src/auth.ts");
     const result = searchForMovedEntry(testEntry, candidates);
     assert.ok(result !== null);
-    // The exact-name match should win.
-    assert.equal(result.confidence, 0.87);
+    // The exact blockHash match (0.95) should win over the body-hash match (0.78).
+    assert.equal(result.confidence, 0.95);
     assert.equal(result.filePath, "src/exact.ts");
   });
 });
