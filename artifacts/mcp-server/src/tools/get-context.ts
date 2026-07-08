@@ -19,6 +19,7 @@ import {
   hashFilePath,
   buildProjectContext,
   queryEntries,
+  mergeContexts,
 } from "@kodela/core";
 import type {
   ContextEntry,
@@ -369,6 +370,13 @@ export function getContextV4(
   repoRoot: string,
   input: GetContextV4Input,
   db: DatabaseSync,
+  /**
+   * Enterprise shared memory: when the org's remote context is supplied
+   * (readMode = remote|merge), it is merged with the local build — local wins
+   * ties — before formatting. Staleness + decision fusion still run against the
+   * local index, which is correct: only the local repo can vouch for drift.
+   */
+  remoteContext?: ProjectContext,
 ): McpContextEnvelope {
   const query: QueryContext = {
     filePath: input.file_path,
@@ -377,9 +385,10 @@ export function getContextV4(
     debug: false,
   };
 
-  const context = buildProjectContext(db, query, repoRoot, {
+  const local = buildProjectContext(db, query, repoRoot, {
     tokenBudget: input.token_budget,
   });
+  const context = remoteContext ? mergeContexts(local, remoteContext) : local;
 
   const envelope = formatMcpResponse(context, input.token_budget);
   surfaceStaleness(db, envelope);

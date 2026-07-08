@@ -17,7 +17,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import path from "node:path";
-import { openIndex, KODELA_DIR } from "@kodela/core";
+import { openIndex, KODELA_DIR, mergeRecallItems, mergeWhyItems, type WhyItem } from "@kodela/core";
 import type { DatabaseSync } from "node:sqlite";
 import { createEntryCache } from "./cache.js";
 import {
@@ -128,6 +128,20 @@ import { closeIdleSessions, DEFAULT_IDLE_THRESHOLD_MS } from "./lib/idle-close.j
 import { resolveFileContextResource } from "./resources/file-context.js";
 import { buildManifest } from "./resources/manifest.js";
 import { initDeploymentStorage } from "./lib/deployment-storage.js";
+import { fetchSharedContext, fetchSharedRecall, fetchSharedWhy } from "./lib/sharedMemory.js";
+
+/** Render core WhyItem[] (shared/merged why) as a plain-text answer block. */
+function formatWhyItems(filePath: string, items: WhyItem[]): string {
+  if (items.length === 0) {
+    return `No decisions found for ${filePath} in the shared memory yet.`;
+  }
+  const lines = [`Why is ${filePath} the way it is? — ${items.length} decision(s):`, ""];
+  items.forEach((it, i) => {
+    lines.push(`${i + 1}. ${it.title}  (confidence ${it.confidence.toFixed(2)})`);
+    if (it.reasonExcerpt) lines.push(`   ${it.reasonExcerpt}`);
+  });
+  return lines.join("\n");
+}
 
 const SERVER_NAME = "kodela" as const;
 const SERVER_VERSION = "0.1.0" as const;
@@ -238,7 +252,19 @@ async function main(): Promise<void> {
             intent: input.intent,
             token_budget: input.token_budget,
           });
-          const envelope = getContextV4(repoRoot, v4Input, db);
+          // Enterprise shared memory: when storage.readMode is remote|merge,
+          // fetch the org's shared context and merge it in (local wins ties).
+          // null → local-only (readMode local, incomplete config, or offline).
+          const remoteContext = await fetchSharedContext(
+            repoRoot,
+            {
+              filePath: v4Input.file_path,
+              intent: v4Input.intent,
+              tokenBudget: v4Input.token_budget,
+            },
+            (m) => process.stderr.write(`[kodela-mcp] ${m}\n`),
+          );
+          const envelope = getContextV4(repoRoot, v4Input, db, remoteContext ?? undefined);
           return {
             content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }],
           };
@@ -933,6 +959,27 @@ async function main(): Promise<void> {
       try {
         const parsed = RecallInputSchema.parse(input);
         const result = await recallForMcp(repoRoot, parsed, db);
+
+        // Enterprise shared memory: when storage.readMode is remote|merge and a
+        // query is present, recall the org's shared why too. remote → replace,
+        // merge → union (local wins ties). Auto-recall (no query) stays local.
+        const q = typeof parsed.query === "string" ? parsed.query.trim() : "";
+        if (q) {
+          const shared = await fetchSharedRecall(
+            repoRoot,
+            q,
+            parsed.limit ?? 8,
+            (m) => process.stderr.write(`[kodela-mcp] ${m}\n`),
+          );
+          if (shared) {
+            if (shared.mode === "remote") {
+              return { content: [{ type: "text", text: shared.result.block }] };
+            }
+            const merged = mergeRecallItems(q, result.items ?? [], shared.result.items, parsed.limit ?? 8);
+            return { content: [{ type: "text", text: merged.block }] };
+          }
+        }
+
         return {
           content: [{ type: "text", text: formatRecallResponse(result) }],
           isError: !result.ok,
@@ -969,6 +1016,28 @@ async function main(): Promise<void> {
       try {
         const parsed = GetWhyInputSchema.parse(input);
         const result = getWhyForMcp(repoRoot, parsed, db);
+
+        // Enterprise shared memory: when storage.readMode is remote|merge, also
+        // ask the org's shared graph "why is this file here?". remote → replace,
+        // merge → union with local (higher confidence wins per decision).
+        const shared = await fetchSharedWhy(
+          repoRoot,
+          parsed.file_path,
+          { maxDepth: parsed.max_depth, minEdgeConfidence: parsed.min_edge_confidence },
+          (m) => process.stderr.write(`[kodela-mcp] ${m}\n`),
+        );
+        if (shared) {
+          const localItems: WhyItem[] = (result.why ?? []).map((w) => ({
+            decisionId: w.decision_id,
+            title: w.title,
+            reasonExcerpt: w.reason_excerpt,
+            confidence: w.confidence,
+          }));
+          const items =
+            shared.mode === "remote" ? shared.items : mergeWhyItems(localItems, shared.items);
+          return { content: [{ type: "text", text: formatWhyItems(parsed.file_path, items) }] };
+        }
+
         return {
           content: [{ type: "text", text: formatGetWhyResponse(result) }],
           isError: !result.ok,

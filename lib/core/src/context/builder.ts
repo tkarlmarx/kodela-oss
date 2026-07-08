@@ -10,7 +10,7 @@ import {
 } from "../storage/sqlite-index.js";
 import { scoreEntries } from "./scorer.js";
 import { resolveClusterLineage } from "./lineage.js";
-import { expandCluster } from "./expander.js";
+import { expandCluster, estimateTokens } from "./expander.js";
 import { loadContextConfig } from "./config-loader.js";
 import type {
   QueryContext,
@@ -22,6 +22,7 @@ import type {
   DebugClusterSelection,
   DebugContext,
   ScoredEntryRow,
+  ClusterEntrySummary,
 } from "./types.js";
 
 function now(): number {
@@ -139,8 +140,56 @@ export function buildProjectContext(
     return expandCluster(cluster, entriesToExpand, config, budget);
   });
 
-  let totalDropped = 0;
-  let dropReason: "token_budget_exceeded" | "max_cap" | undefined;
+  const clusteredEntries = deduplicateById(expandedClusters.flatMap((e) => e.entries));
+
+  // Entries not attached to any intent cluster must still surface. Clustering is
+  // optional enrichment, not a precondition for retrieval — without this, a
+  // get_context query returns *nothing* whenever the matched entries have not
+  // been clustered (cluster_id NULL), which is the common case: the entries
+  // exist, matched the filter, and scored, yet were silently dropped. Emit them
+  // under the shared token budget, highest score first, capped like the
+  // clustered path (maxClusters × maxEntriesPerCluster).
+  const seenIds = new Set(clusteredEntries.map((e) => e.id));
+  const unclusteredEntries: ClusterEntrySummary[] = [];
+  let unclusteredDropped = 0;
+  let unclusteredDropReason: "budget" | "cap" | null = null;
+  const unclusteredCap = config.maxClusters * config.maxEntriesPerCluster;
+  const sortedNoCluster = [...noClusterEntries].sort(
+    (a, b) => b.scores.finalScore - a.scores.finalScore,
+  );
+  for (const scored of sortedNoCluster) {
+    if (seenIds.has(scored.id)) continue;
+    if (clusteredEntries.length + unclusteredEntries.length >= unclusteredCap) {
+      unclusteredDropped++;
+      unclusteredDropReason = "cap";
+      break;
+    }
+    const cost = estimateTokens(scored);
+    if (budget.tokens - cost < 0) {
+      unclusteredDropped++;
+      unclusteredDropReason = "budget";
+      break;
+    }
+    unclusteredEntries.push({
+      id: scored.id,
+      filePath: scored.filePath,
+      confidence: scored.confidence,
+      clusterId: scored.clusterId,
+      sessionId: scored.sessionId,
+      scope: scored.scope,
+      createdAt: scored.createdAt,
+    });
+    budget.tokens -= cost;
+    seenIds.add(scored.id);
+  }
+
+  let totalDropped = unclusteredDropped;
+  let dropReason: "token_budget_exceeded" | "max_cap" | undefined =
+    unclusteredDropReason === "budget"
+      ? "token_budget_exceeded"
+      : unclusteredDropReason === "cap"
+        ? "max_cap"
+        : undefined;
   for (const expanded of expandedClusters) {
     totalDropped += expanded.droppedCount;
     if (expanded.droppedReason === "budget" && !dropReason) {
@@ -155,7 +204,7 @@ export function buildProjectContext(
 
   const t5 = now();
 
-  const allEntries = deduplicateById(expandedClusters.flatMap((e) => e.entries));
+  const allEntries = deduplicateById([...clusteredEntries, ...unclusteredEntries]);
 
   const sessionIds = new Set<string>(
     allEntries.map((e) => e.sessionId).filter((s): s is string => Boolean(s)),

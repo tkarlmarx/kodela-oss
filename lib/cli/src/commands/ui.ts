@@ -697,6 +697,14 @@ export function buildUiHtml(): string {
     var hay = (file + " " + e.note + " " + (e.reasoning || "")).toLowerCase();
     return hay.indexOf(term) !== -1;
   }
+  // Used by the graph to check if a file node has at least one entry matching
+  // the active severity filter. Decision nodes always pass (no severity).
+  function nodeMatchesSev(nodeId) {
+    if (sev === "all") return true;
+    var f = DATA && DATA.files.find(function (fl) { return fl.path === nodeId; });
+    if (!f) return true; // decision nodes or unknown — don't dim
+    return f.entries.some(function (e) { return e.severity === sev; });
+  }
   function entryHtml(e) {
     return '<div class="entry sev-' + esc(e.severity) + '">' +
       '<div class="meta"><span class="badge sev">' + esc(e.severity) + '</span>' +
@@ -963,7 +971,9 @@ export function buildUiHtml(): string {
           ctx.fillText("+" + it.more, x, y); ctx.textAlign = "start"; ctx.textBaseline = "alphabetic"; return;
         }
         var nd = it.node, col = colorFor(nd);
-        var dim = term && it.ring === 1 && nd && nd.id.toLowerCase().indexOf(term) === -1 && (nd.label || "").toLowerCase().indexOf(term) === -1;
+        var dimByTerm = term && it.ring === 1 && nd && nd.id.toLowerCase().indexOf(term) === -1 && (nd.label || "").toLowerCase().indexOf(term) === -1;
+        var dimBySev = sev !== "all" && it.ring === 1 && nd && !nodeMatchesSev(nd.id);
+        var dim = dimByTerm || dimBySev;
         ctx.globalAlpha = dim ? 0.22 : 1;
         if (nd && nd.kind === "decision") { diamond(x, y, r, col, isSel || isHover); }
         else {
@@ -1146,6 +1156,17 @@ export function serveUi(
     res.end(html);
   });
   server.listen(port, host);
+  server.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EADDRINUSE") {
+      process.stderr.write(
+        `\n✗ Port ${port} is already in use (another kodela ui instance running?).\n` +
+        `  → Kill it with: kill $(lsof -ti:${port}) 2>/dev/null\n` +
+        `  → Or use a different port: kodela ui --port ${port + 1}\n\n`,
+      );
+      process.exit(1);
+    }
+    throw err;
+  });
   return server;
 }
 

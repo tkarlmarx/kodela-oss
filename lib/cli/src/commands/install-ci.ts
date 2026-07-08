@@ -8,6 +8,7 @@ import {
   CI_PLATFORM_LABELS,
   CI_OUTPUT_PATHS,
   githubActionsTemplate,
+  githubActionsSyncTemplate,
   gitlabCiTemplate,
   bitbucketPipelinesTemplate,
   circleciTemplate,
@@ -27,6 +28,13 @@ export type InstallCiOptions = {
   platform: CiPlatform;
   config: KodelaConfig;
   force?: boolean;
+  /**
+   * Emit the central-sync workflow (push .kodela/ to the server on push to the
+   * default branch) instead of the advisory coverage-check workflow. Currently
+   * GitHub Actions only; other platforms should adapt the one-liner from
+   * docs/enterprise-deployment.md.
+   */
+  sync?: boolean;
 };
 
 export type InstallCiResult = {
@@ -34,6 +42,13 @@ export type InstallCiResult = {
   outputPath: string;
   installed: boolean;
   skipped: boolean;
+  /** True when this run emitted the central-sync workflow (via --sync). */
+  sync: boolean;
+};
+
+/** Where the central-sync workflow lands (separate from the coverage check). */
+const SYNC_OUTPUT_PATHS: Partial<Record<CiPlatform, string>> = {
+  github: ".github/workflows/kodela-sync.yml",
 };
 
 function getTemplate(platform: CiPlatform, config: KodelaConfig): string {
@@ -63,7 +78,24 @@ function getTemplate(platform: CiPlatform, config: KodelaConfig): string {
 export async function runInstallCi(
   opts: InstallCiOptions,
 ): Promise<InstallCiResult> {
-  const { repoRoot, platform, config, force = false } = opts;
+  const { repoRoot, platform, config, force = false, sync = false } = opts;
+
+  if (sync) {
+    const syncPath = SYNC_OUTPUT_PATHS[platform];
+    if (!syncPath) {
+      throw new Error(
+        `--sync currently supports GitHub Actions only. For ${CI_PLATFORM_LABELS[platform]}, ` +
+          `add a job that runs \`kodela sync\` on push to your default branch — see docs/enterprise-deployment.md.`,
+      );
+    }
+    const absSyncPath = path.join(repoRoot, syncPath);
+    if ((await fileExists(absSyncPath)) && !force) {
+      return { platform, outputPath: syncPath, installed: false, skipped: true, sync: true };
+    }
+    await fs.mkdir(path.dirname(absSyncPath), { recursive: true });
+    await fs.writeFile(absSyncPath, githubActionsSyncTemplate(), "utf-8");
+    return { platform, outputPath: syncPath, installed: true, skipped: false, sync: true };
+  }
 
   const relOutputPath = CI_OUTPUT_PATHS[platform];
   const absOutputPath = path.join(repoRoot, relOutputPath);
@@ -75,6 +107,7 @@ export async function runInstallCi(
       outputPath: relOutputPath,
       installed: false,
       skipped: true,
+      sync: false,
     };
   }
 
@@ -87,6 +120,7 @@ export async function runInstallCi(
     outputPath: relOutputPath,
     installed: true,
     skipped: false,
+    sync: false,
   };
 }
 
@@ -97,6 +131,21 @@ export function formatInstallCiResult(result: InstallCiResult): string {
     return [
       `⚠ Skipped — ${result.outputPath} already exists.`,
       `  Use --force to overwrite.`,
+    ].join("\n");
+  }
+
+  if (result.sync) {
+    return [
+      `✓ Created ${result.outputPath}`,
+      ``,
+      `  Central-sync workflow — pushes .kodela/ to your server on push to main.`,
+      ``,
+      `  Next steps:`,
+      `    1. Add repo secrets: KODELA_API_KEY (required), KODELA_ORG_ID`,
+      `       (unless the org license is committed).`,
+      `    2. Ensure kodela.config.json has storage.server.url (or set the`,
+      `       KODELA_SERVER_URL repo variable).`,
+      `    3. Commit ${result.outputPath}.`,
     ].join("\n");
   }
 

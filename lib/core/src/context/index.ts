@@ -10,6 +10,21 @@ export type { LineageResult } from "./lineage.js";
 export { expandCluster, estimateTokens } from "./expander.js";
 export type { ExpandedCluster, BudgetState } from "./expander.js";
 
+export {
+  fetchRemoteContext,
+  mergeContexts,
+  fetchRemoteRecall,
+  mergeRecallItems,
+  fetchRemoteWhy,
+  mergeWhyItems,
+} from "./remote.js";
+export type {
+  FetchRemoteContextOptions,
+  FetchRemoteRecallOptions,
+  RemoteRecallResult,
+  FetchRemoteWhyOptions,
+} from "./remote.js";
+
 export { loadContextConfig } from "./config-loader.js";
 export type { ContextConfig } from "./config-loader.js";
 

@@ -32,6 +32,7 @@ import {
   listSessions,
   readSignOff,
   readComments,
+  loadLicense,
   type ContextEntry,
   type KodelaSession,
   type SignOffRecord,
@@ -51,6 +52,12 @@ export interface MigrateToSaasOptions {
   apiKey: string;
   /** Server-side repo identifier (FK to repo_links.id) the migration targets. */
   repoId: string;
+  /**
+   * Organization id sent as the `X-Kodela-Org-Id` header. The Enterprise
+   * api-server rejects every request without it (401). When omitted, it is
+   * resolved from the local license (`loadLicense().orgId`), matching `sync`.
+   */
+  orgId?: string;
   /** Max records (entries + sessions combined) per request batch. */
   batchSize?: number;
   /** When true, walks the local data + prints what would be sent without POST-ing. */
@@ -91,6 +98,7 @@ interface MigrationBatchResponse {
 async function postBatch(
   serverUrl: string,
   apiKey: string,
+  orgId: string | undefined,
   repoId: string,
   entries: ContextEntry[],
   sessions: KodelaSession[],
@@ -98,14 +106,22 @@ async function postBatch(
   comments: ContextComment[],
 ): Promise<{ ok: true; body: MigrationBatchResponse } | { ok: false; error: string }> {
   const payload = { repoId, entries, sessions, signoffs, comments };
+  // The Enterprise api-server (verifyCliAuth) requires X-Kodela-Org-Id and 401s
+  // without it. Send the caller-resolved orgId (from --org-id, the license, or
+  // KODELA_ORG_ID). No hardcoded fallback — a wrong org id fails auth as loudly
+  // as a missing one, so surface the real value or none at all.
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${apiKey}`,
+  };
+  if (orgId) {
+    headers["X-Kodela-Org-Id"] = orgId;
+  }
   let res: Response;
   try {
     res = await fetch(`${serverUrl.replace(/\/$/, "")}/api/migrations/local-import`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
+      headers,
       body: JSON.stringify(payload),
     });
   } catch (err) {
@@ -137,6 +153,17 @@ export async function runMigrateToSaas(opts: MigrateToSaasOptions): Promise<Migr
     throw new MigrateToSaasError(
       "Missing required options (repoRoot, serverUrl, apiKey, repoId)",
       "→ pass --server, --api-key, and --repo-id (or set them in kodela.config.json + env)",
+    );
+  }
+
+  // Resolve the org id the api-server requires in X-Kodela-Org-Id: an explicit
+  // --org-id wins, then KODELA_ORG_ID, then the local license (like `sync`).
+  const orgId =
+    opts.orgId ?? process.env.KODELA_ORG_ID ?? (await loadLicense(repoRoot))?.orgId ?? undefined;
+  if (!orgId && !dryRun) {
+    throw new MigrateToSaasError(
+      "No organization id available for the X-Kodela-Org-Id header — the Enterprise server will reject the request (401).",
+      "→ pass --org-id <id>, set KODELA_ORG_ID, or install your org license (kodela activate)",
     );
   }
 
@@ -253,6 +280,7 @@ export async function runMigrateToSaas(opts: MigrateToSaasOptions): Promise<Migr
     const res = await postBatch(
       serverUrl,
       apiKey,
+      orgId,
       repoId,
       batchEntries,
       batchSessions,

@@ -42,6 +42,11 @@ import {
   formatMigrateToSaasResult,
   handleMigrateToSaasError,
 } from "./commands/migrate-to-saas.js";
+import {
+  runConfigPull,
+  formatConfigPullResult,
+  handleConfigPullError,
+} from "./commands/config-pull.js";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
@@ -73,6 +78,8 @@ import {
 import { runRecall } from "./commands/recall.js";
 import { runHygiene, formatHygieneResult } from "./commands/hygiene.js";
 import type { HygieneSeverity } from "@kodela/core/hygiene";
+import { loadLicense, fetchRemoteRecall, mergeRecallItems } from "@kodela/core";
+import { resolveRepoIdentity } from "./utils/gitRemote.js";
 import { runComprehend, formatComprehendResult } from "./commands/comprehend.js";
 import { runTour, formatTourResult } from "./commands/tour.js";
 import { runImpact, formatImpactResult } from "./commands/impact.js";
@@ -158,6 +165,8 @@ import {
   runContext,
   formatContextResult,
   formatContextResultPretty,
+  type ReadMode,
+  type RemoteReadConfig,
 } from "./commands/context.js";
 import {
   runDetectAiChange,
@@ -1237,7 +1246,11 @@ program
       (opts.npx ? repoRoot : null);
     if (!kodelaHome) {
       process.stderr.write(
-        "Error: could not locate the Kodela install (pnpm-workspace.yaml). Set KODELA_HOME to the Kodela repo path.\n",
+        "Error: could not locate the Kodela install.\n\n" +
+        "  If you installed @kodela/cli from npm, use --npx:\n" +
+        "    kodela connect --npx          (dry-run)\n" +
+        "    kodela connect --apply --npx  (write configs)\n\n" +
+        "  If you're running from a local checkout, set KODELA_HOME to the repo path.\n",
       );
       process.exit(1);
     }
@@ -1447,20 +1460,58 @@ program
   .option("--limit <n>", "Max items to recall (default 8)", "8")
   .option("--no-semantic", "Use keyword retrieval instead of semantic (embedding) retrieval")
   .option("-o, --output <format>", "Output format: text (markdown block) or json", "text")
-  .action(async (query: string[], opts: { limit: string; semantic: boolean; output: string }) => {
+  .option("--read-mode <mode>", "Shared-memory read: local | remote | merge (default: storage.readMode or local)")
+  .option("--server <url>", "Server URL for remote/merge recall")
+  .option("--api-key <key>", "API key for remote/merge recall")
+  .option("--org-id <id>", "Organization id (overrides KODELA_ORG_ID / license)")
+  .option("--repo <owner/name>", "Repo full name for shared-memory scope (default: auto from git remote)")
+  .option("--repo-id <id>", "Raw repo_links id (overrides KODELA_REPO_ID / --repo)")
+  .action(async (query: string[], opts: {
+    limit: string; semantic: boolean; output: string;
+    readMode?: string; server?: string; apiKey?: string; orgId?: string; repo?: string; repoId?: string;
+  }) => {
     const repoRoot = await findRepoRoot(process.cwd());
     const joined = query.join(" ").trim();
+    const limit = parseInt(opts.limit, 10);
+    const warn = (m: string) => process.stderr.write(`Warning: ${m}\n`);
     try {
-      const result = await runRecall({
-        repoRoot,
-        query: joined || undefined,
-        limit: parseInt(opts.limit, 10),
-        semantic: opts.semantic,
-      });
-      if (opts.output === "json") {
-        process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+      // Shared-memory recall (storage.readMode). Remote recall needs an explicit
+      // query — auto-recall-from-session-goal is a local-only notion — so with no
+      // query we always read local.
+      const remote = joined
+        ? await resolveContextRemote(repoRoot, opts)
+        : { readMode: "local" as const, config: undefined };
+
+      let block: string;
+      let items: unknown;
+      if (remote.readMode === "remote" && remote.config) {
+        try {
+          const r = await fetchRemoteRecall({ ...remote.config, query: joined, limit });
+          block = r.block; items = r.items;
+        } catch (err) {
+          warn(`Remote recall failed (${err instanceof Error ? err.message : String(err)}); using local.`);
+          const local = await runRecall({ repoRoot, query: joined, limit, semantic: opts.semantic });
+          block = local.block; items = local.items;
+        }
+      } else if (remote.readMode === "merge" && remote.config) {
+        const local = await runRecall({ repoRoot, query: joined, limit, semantic: opts.semantic });
+        try {
+          const r = await fetchRemoteRecall({ ...remote.config, query: joined, limit });
+          const m = mergeRecallItems(joined, local.items, r.items, limit);
+          block = m.block; items = m.items;
+        } catch (err) {
+          warn(`Remote recall failed (${err instanceof Error ? err.message : String(err)}); using local only.`);
+          block = local.block; items = local.items;
+        }
       } else {
-        process.stdout.write(result.block + "\n");
+        const local = await runRecall({ repoRoot, query: joined || undefined, limit, semantic: opts.semantic });
+        block = local.block; items = local.items;
+      }
+
+      if (opts.output === "json") {
+        process.stdout.write(JSON.stringify({ query: joined, items, block }, null, 2) + "\n");
+      } else {
+        process.stdout.write(block + "\n");
       }
       process.exit(0);
     } catch (err) {
@@ -1910,10 +1961,11 @@ program
   )
   .option("-f, --force", "Overwrite hooks that already exist", false)
   .option("--claude", "Also install Claude Code hooks into .claude/settings.json", false)
-  .action(async (opts: { force: boolean; claude: boolean }) => {
+  .option("--sync", "Also install a post-merge hook that runs `kodela sync` (central mode)", false)
+  .action(async (opts: { force: boolean; claude: boolean; sync: boolean }) => {
     const repoRoot = await findRepoRoot(process.cwd());
     try {
-      const result = await runInstallHooks({ repoRoot, force: opts.force, claude: opts.claude });
+      const result = await runInstallHooks({ repoRoot, force: opts.force, claude: opts.claude, sync: opts.sync });
       process.stdout.write(formatInstallHooksResult(result) + "\n");
       process.exit(0);
     } catch (err) {
@@ -1995,7 +2047,8 @@ program
     `Target CI/CD platform (${CI_PLATFORMS.join(", ")})`,
   )
   .option("-f, --force", "Overwrite the file if it already exists", false)
-  .action(async (opts: { platform: string; force: boolean }) => {
+  .option("--sync", "Write the central-sync workflow (push .kodela/ to the server on push to main) instead of the coverage check", false)
+  .action(async (opts: { platform: string; force: boolean; sync: boolean }) => {
     const repoRoot = await findRepoRoot(process.cwd());
 
     if (!CI_PLATFORMS.includes(opts.platform as CiPlatform)) {
@@ -2014,6 +2067,7 @@ program
         platform: opts.platform as CiPlatform,
         config,
         force: opts.force,
+        sync: opts.sync,
       });
       process.stdout.write(formatInstallCiResult(result) + "\n");
       process.exit(0);
@@ -2691,6 +2745,7 @@ program
   .requiredOption("--server <url>", "SaaS server URL (e.g. https://app.kodela.dev)")
   .requiredOption("--api-key <key>", "Kodela API key (Bearer token)")
   .requiredOption("--repo-id <id>", "Server-side repo identifier (FK to repo_links.id) to attach data to")
+  .option("--org-id <id>", "Organization id for the X-Kodela-Org-Id header (defaults to KODELA_ORG_ID or the installed license)")
   .option("--batch-size <n>", "Records per HTTP request (default 100)", "100")
   .option("--dry-run", "Walk the local data + print the count without POSTing", false)
   .action(
@@ -2698,6 +2753,7 @@ program
       server: string;
       apiKey: string;
       repoId: string;
+      orgId?: string;
       batchSize: string;
       dryRun: boolean;
     }) => {
@@ -2708,6 +2764,7 @@ program
           serverUrl: opts.server,
           apiKey: opts.apiKey,
           repoId: opts.repoId,
+          orgId: opts.orgId,
           batchSize: parseInt(opts.batchSize, 10),
           dryRun: opts.dryRun,
         });
@@ -2754,6 +2811,35 @@ program
   });
 
 program
+  .command("config-pull")
+  .description(
+    "Inherit org-wide config from the central server into kodela.config.json.\n" +
+    "  An admin sets defaults once (dashboard → Admin → Configuration); each repo\n" +
+    "  pulls them here. Locked policies override; otherwise org values only fill\n" +
+    "  fields the repo has not set. GET /api/admin/org-config.",
+  )
+  .option("--server <url>", "Server URL (overrides storage.server.url)")
+  .option("--api-key <key>", "API key (overrides KODELA_API_KEY)")
+  .option("--org-id <id>", "Organization id (overrides KODELA_ORG_ID / license)")
+  .option("--dry-run", "Fetch + show what would change without writing", false)
+  .action(async (opts: { server?: string; apiKey?: string; orgId?: string; dryRun: boolean }) => {
+    const repoRoot = await findRepoRoot(process.cwd());
+    try {
+      const result = await runConfigPull({
+        repoRoot,
+        serverUrl: opts.server,
+        apiKey: opts.apiKey,
+        orgId: opts.orgId,
+        dryRun: opts.dryRun,
+      });
+      process.stdout.write(formatConfigPullResult(result) + "\n");
+      process.exit(0);
+    } catch (err) {
+      handleConfigPullError(err);
+    }
+  });
+
+program
   .command("sync")
   .description(
     "Gap 60 — Push local annotations to the central Kodela server.\n" +
@@ -2765,6 +2851,12 @@ program
   .option("--session <id>", "Only sync entries with this session ID")
   .option("--batch-size <n>", "Entries per batch request", "100")
   .option("--dry-run", "Show what would be synced without sending", false)
+  .option(
+    "--auto",
+    "Automatic mode: no-op unless storage.mode is \"central\", and never error " +
+      "(silent when unconfigured). Used by the post-commit hook so team sync is hands-off.",
+    false,
+  )
   .action(
     async (opts: {
       server?: string;
@@ -2772,9 +2864,20 @@ program
       session?: string;
       batchSize: string;
       dryRun: boolean;
+      auto: boolean;
     }) => {
       const repoRoot = await findRepoRoot(process.cwd());
       const config = await loadConfigSafe(repoRoot);
+
+      // --auto is the hands-off team path: it fires on every commit via the
+      // post-commit hook, so it must be a silent no-op unless the org has opted
+      // this repo into central storage. That opt-in is set once in the admin
+      // panel and inherited via `kodela config-pull` (storage.mode: central).
+      const storageMode =
+        config instanceof ConfigLoadError ? undefined : config.storage?.mode;
+      if (opts.auto && storageMode !== "central") {
+        process.exit(0);
+      }
 
       const serverUrl =
         opts.server ??
@@ -2788,6 +2891,9 @@ program
       const apiKey = opts.apiKey ?? process.env[apiKeyEnvName];
 
       if (!serverUrl) {
+        // In --auto mode a missing server is not an error — the repo may be
+        // mid-onboarding; stay silent so we never break a developer's commit.
+        if (opts.auto) process.exit(0);
         process.stderr.write(
           "Error: server URL required. Set storage.server.url in kodela.config.json or use --server.\n",
         );
@@ -2795,6 +2901,7 @@ program
       }
 
       if (!apiKey) {
+        if (opts.auto) process.exit(0);
         process.stderr.write(
           `Error: API key required. Set the ${apiKeyEnvName} environment variable or use --api-key.\n`,
         );
@@ -2810,9 +2917,16 @@ program
           batchSize: parseInt(opts.batchSize, 10),
           dryRun: opts.dryRun,
         });
-        process.stdout.write(formatSyncResult(result) + "\n");
+        // Auto mode keeps quiet on success (nothing to report on a normal
+        // commit) but still surfaces errors to stderr for debugging.
+        if (!opts.auto) {
+          process.stdout.write(formatSyncResult(result) + "\n");
+        } else if (result.errors.length > 0) {
+          process.stderr.write(formatSyncResult(result) + "\n");
+        }
         process.exit(result.errors.length > 0 ? 1 : 0);
       } catch (err) {
+        if (opts.auto) process.exit(0);
         process.stderr.write(
           `Error: ${err instanceof Error ? err.message : String(err)}\n`,
         );
@@ -3196,6 +3310,74 @@ mcpCmd
 
 // ── Gap 114 — context command ─────────────────────────────────────────────────
 
+/**
+ * Resolve the shared-memory read mode + remote credentials for `kodela context`.
+ * Precedence: CLI flags → env → kodela.config.json → license. Mirrors the
+ * resolution `kodela sync` / `kodela config-pull` use. When readMode is
+ * remote/merge but the remote config can't be fully resolved, we downgrade to
+ * local read and warn — never fail the command over a missing shared-memory
+ * setting.
+ */
+async function resolveContextRemote(
+  repoRoot: string,
+  opts: {
+    readMode?: string;
+    server?: string;
+    apiKey?: string;
+    orgId?: string;
+    repoId?: string;
+    repo?: string;
+  },
+): Promise<{ readMode: ReadMode; config?: RemoteReadConfig }> {
+  const config = await loadConfig(repoRoot).catch(() => DEFAULT_CONFIG);
+
+  const requested = (opts.readMode ?? config.storage?.readMode ?? "local") as ReadMode;
+  if (requested !== "remote" && requested !== "merge") {
+    return { readMode: "local" };
+  }
+
+  const serverUrl = opts.server ?? config.storage?.server?.url;
+  const apiKeyEnv = config.storage?.server?.api_key_env ?? "KODELA_API_KEY";
+  const apiKey = opts.apiKey ?? process.env[apiKeyEnv];
+  const orgId =
+    opts.orgId ??
+    process.env["KODELA_ORG_ID"] ??
+    (await loadLicense(repoRoot))?.orgId;
+  const repoId = opts.repoId ?? process.env["KODELA_REPO_ID"];
+  // Repo scope: explicit --repo / raw id wins; otherwise auto-derive the repo
+  // full name from `git remote` so no flag is needed in the common case.
+  const repoFullName =
+    opts.repo ??
+    process.env["KODELA_REPO"] ??
+    (repoId ? undefined : (await resolveRepoIdentity(repoRoot))?.repoFullName);
+
+  const missing: string[] = [];
+  if (!serverUrl) missing.push("server URL (--server / storage.server.url)");
+  if (!apiKey) missing.push(`API key (--api-key / $${apiKeyEnv})`);
+  if (!orgId) missing.push("org id (--org-id / $KODELA_ORG_ID / license)");
+  if (!repoId && !repoFullName)
+    missing.push("repo (--repo / a git remote / --repo-id)");
+
+  if (missing.length > 0) {
+    process.stderr.write(
+      `Warning: readMode="${requested}" requested but ${missing.join(", ")} ` +
+        `not resolved; reading local only.\n`,
+    );
+    return { readMode: "local" };
+  }
+
+  return {
+    readMode: requested,
+    config: {
+      serverUrl: serverUrl!,
+      apiKey: apiKey!,
+      orgId: orgId!,
+      repoFullName,
+      repoId,
+    },
+  };
+}
+
 program
   .command("context")
   .description(
@@ -3211,6 +3393,15 @@ program
   .option("--budget <tokens>", "Token budget (default: 4000)", (v) => parseInt(v, 10))
   .option("--debug", "Show full scoring breakdown, cluster selection rationale, and timing")
   .option("--output <format>", "Output format: json (default) or pretty", "json")
+  .option(
+    "--read-mode <mode>",
+    "Shared-memory read: local | remote | merge (default: storage.readMode or local)",
+  )
+  .option("--server <url>", "Server URL for remote/merge read (overrides storage.server.url)")
+  .option("--api-key <key>", "API key for remote/merge read (overrides KODELA_API_KEY)")
+  .option("--org-id <id>", "Organization id (overrides KODELA_ORG_ID / license)")
+  .option("--repo <owner/name>", "Repo full name for shared-memory scope (default: auto from git remote)")
+  .option("--repo-id <id>", "Raw repo_links id (overrides KODELA_REPO_ID / --repo)")
   .action(
     async (opts: {
       file?: string;
@@ -3218,15 +3409,25 @@ program
       budget?: number;
       debug?: boolean;
       output?: string;
+      readMode?: string;
+      server?: string;
+      apiKey?: string;
+      orgId?: string;
+      repo?: string;
+      repoId?: string;
     }) => {
       const repoRoot = await findRepoRoot(process.cwd());
       try {
+        const remote = await resolveContextRemote(repoRoot, opts);
         const result = await runContext({
           repoRoot,
           filePath: opts.file,
           intent: opts.intent,
           budget: opts.budget,
           debug: opts.debug === true,
+          readMode: remote.readMode,
+          remote: remote.config,
+          onWarn: (m) => process.stderr.write(`Warning: ${m}\n`),
         });
         const pretty = opts.output === "pretty";
         const text = pretty

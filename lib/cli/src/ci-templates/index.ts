@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 The Kodela Authors
 export { githubActionsTemplate } from "./github-actions.js";
+export { githubActionsSyncTemplate } from "./github-actions-sync.js";
 export { gitlabCiTemplate } from "./gitlab-ci.js";
 export { bitbucketPipelinesTemplate } from "./bitbucket-pipelines.js";
 export { circleciTemplate } from "./circleci.js";

@@ -129,6 +129,31 @@ export { scoreEntry, scoreEntries } from "./context/index.js";
 export { resolveClusterLineage, clusterRowToIntentCluster } from "./context/index.js";
 export { expandCluster, estimateTokens } from "./context/index.js";
 export { loadContextConfig } from "./context/index.js";
+export {
+  fetchRemoteContext,
+  mergeContexts,
+  fetchRemoteRecall,
+  mergeRecallItems,
+  fetchRemoteWhy,
+  mergeWhyItems,
+} from "./context/index.js";
+export type {
+  FetchRemoteContextOptions,
+  FetchRemoteRecallOptions,
+  RemoteRecallResult,
+  FetchRemoteWhyOptions,
+} from "./context/index.js";
+export { whyForFile, WHY_EDGE_TYPES } from "./why/whyForFile.js";
+export type {
+  WhyEntry,
+  WhyEdge,
+  WhyDecision,
+  WhyItem,
+  WhyForFileOptions,
+  WhyEvidenceStep,
+} from "./why/whyForFile.js";
+export { parseRepoIdentity, resolveRepoIdentity } from "./git/repoIdentity.js";
+export type { RepoIdentity, RepoProvider } from "./git/repoIdentity.js";
 export type {
   QueryContext,
   ExpansionConfig,

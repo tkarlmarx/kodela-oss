@@ -17,6 +17,10 @@ import type {
   AuditQueryFilters,
   AuditExportFilters,
   InsertAuditEventData,
+  OrgConfigRow,
+  EntryContextRow,
+  RecallEntryRow,
+  WhyGraph,
   PolicyRow,
   PolicyRuleRow,
   InsertPolicyRuleData,
@@ -49,6 +53,7 @@ import type {
   SetRepoPermissionData,
 } from "../storage.js";
 import type { AuditEventType } from "../schema/auditEvents.js";
+import { toRecallRow, type RecallRowBase } from "../recall-row.js";
 
 function ensureGitignore(dir: string): void {
   const gitignorePath = join(dir, ".gitignore");
@@ -348,6 +353,15 @@ export class SqliteStorage implements KodelaStorage {
     `);
 
     this.db.exec(`
+      CREATE TABLE IF NOT EXISTS org_config (
+        org_id TEXT PRIMARY KEY,
+        config TEXT NOT NULL DEFAULT '{}',
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+        FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE
+      );
+    `);
+
+    this.db.exec(`
       CREATE TABLE IF NOT EXISTS sign_off_records (
         id TEXT PRIMARY KEY,
         org_id TEXT NOT NULL DEFAULT 'local',
@@ -619,6 +633,76 @@ export class SqliteStorage implements KodelaStorage {
     return Promise.resolve(rows.map(mapAuditEvent));
   }
 
+  getOrgConfig(orgId: string): Promise<OrgConfigRow | null> {
+    const row = this.db
+      .prepare(
+        `SELECT org_id AS "orgId", config, updated_at AS "updatedAt"
+         FROM org_config WHERE org_id = ? LIMIT 1`,
+      )
+      .get(orgId) as { orgId: string; config: string; updatedAt: string } | undefined;
+    if (!row) return Promise.resolve(null);
+    return Promise.resolve({
+      orgId: row.orgId,
+      config: JSON.parse(row.config) as Record<string, unknown>,
+      updatedAt: row.updatedAt,
+    });
+  }
+
+  setOrgConfig(orgId: string, config: Record<string, unknown>): Promise<OrgConfigRow> {
+    this.db.prepare("INSERT OR IGNORE INTO orgs (id) VALUES (?)").run(orgId);
+    const updatedAt = new Date().toISOString();
+    this.db
+      .prepare(
+        `INSERT INTO org_config (org_id, config, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(org_id) DO UPDATE SET config = excluded.config, updated_at = excluded.updated_at`,
+      )
+      .run(orgId, JSON.stringify(config), updatedAt);
+    return Promise.resolve({ orgId, config, updatedAt });
+  }
+
+  getEntriesForRepo(orgId: string, repoId: string): Promise<EntryContextRow[]> {
+    const rows = this.db
+      .prepare(
+        `SELECT id,
+                file_path       AS "filePath",
+                schema_version  AS "schemaVersion",
+                status, severity, source, confidence, scope,
+                session_id      AS "sessionId",
+                cluster_id      AS "clusterId",
+                review_required AS "reviewRequired",
+                created_at      AS "createdAt",
+                updated_at      AS "updatedAt"
+         FROM entries
+         WHERE org_id = ? AND repo_id = ?`,
+      )
+      .all(orgId, repoId) as Array<Omit<EntryContextRow, "reviewRequired"> & { reviewRequired: number }>;
+    return Promise.resolve(
+      rows.map((r) => ({ ...r, reviewRequired: Boolean(r.reviewRequired) })),
+    );
+  }
+
+  getRecallEntriesForRepo(orgId: string, repoId: string): Promise<RecallEntryRow[]> {
+    const rows = this.db
+      .prepare(
+        `SELECT id,
+                file_path  AS "filePath",
+                note, severity, status, source, confidence,
+                session_id AS "sessionId",
+                created_at AS "createdAt",
+                payload
+         FROM entries
+         WHERE org_id = ? AND repo_id = ?`,
+      )
+      .all(orgId, repoId) as unknown as RecallRowBase[];
+    return Promise.resolve(rows.map(toRecallRow));
+  }
+
+  getWhyGraphForRepo(_orgId: string, _repoId: string): Promise<WhyGraph> {
+    // The fused graph is Postgres-only server-side (ingestRepoGraph is a no-op
+    // on this adapter), so there is no graph to traverse here.
+    return Promise.resolve({ edges: [], decisions: [] });
+  }
+
   getOrCreateActivePolicy(orgId: string): Promise<PolicyRow> {
     this.db
       .prepare("INSERT OR IGNORE INTO orgs (id) VALUES (?)")
@@ -851,6 +935,54 @@ export class SqliteStorage implements KodelaStorage {
       .get(repoFullName) as RawRepoLink | undefined;
 
     return Promise.resolve(row ? mapRepoLink(row) : null);
+  }
+
+  getRepoLinkByOrgAndFullName(
+    orgId: string,
+    repoFullName: string,
+  ): Promise<RepoLinkRow | null> {
+    const row = this.db
+      .prepare(
+        `SELECT id,
+                org_id           AS "orgId",
+                provider,
+                repo_full_name   AS "repoFullName",
+                encrypted_token  AS "encryptedToken",
+                installation_id  AS "installationId",
+                created_at       AS "createdAt",
+                updated_at       AS "updatedAt"
+         FROM   repo_links
+         WHERE  org_id = ? AND repo_full_name = ?
+         LIMIT  1`,
+      )
+      .get(orgId, repoFullName) as RawRepoLink | undefined;
+
+    return Promise.resolve(row ? mapRepoLink(row) : null);
+  }
+
+  async ensureRepoLink(data: InsertRepoLinkData): Promise<RepoLinkRow> {
+    const existing = await this.getRepoLinkByOrgAndFullName(
+      data.orgId,
+      data.repoFullName,
+    );
+    if (existing) return existing;
+    // repo_links.org_id FKs to orgs; seed the org so a first-time central sync
+    // from a never-onboarded org still succeeds (matches upsertEntry's pattern).
+    this.db.prepare("INSERT OR IGNORE INTO orgs (id) VALUES (?)").run(data.orgId);
+    try {
+      return await this.insertRepoLink(data);
+    } catch {
+      // Lost a race against a concurrent insert — the unique index rejected us;
+      // the row now exists, so re-read it.
+      const row = await this.getRepoLinkByOrgAndFullName(
+        data.orgId,
+        data.repoFullName,
+      );
+      if (row) return row;
+      throw new Error(
+        `ensureRepoLink: failed to create or find repo link for ${data.repoFullName}`,
+      );
+    }
   }
 
   insertRepoLink(data: InsertRepoLinkData): Promise<RepoLinkRow> {

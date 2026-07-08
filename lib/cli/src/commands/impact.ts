@@ -66,6 +66,21 @@ export async function runImpact(opts: ImpactOptions): Promise<ImpactRunResult> {
   const changedFiles =
     source === "args" ? opts.files! : await gitChangedFiles(opts.repoRoot, base);
 
+  // Warn when explicitly-provided files don't exist in the repo (e.g. typo).
+  if (source === "args") {
+    const { access } = await import("node:fs/promises");
+    const path = await import("node:path");
+    for (const f of changedFiles) {
+      try {
+        await access(path.join(opts.repoRoot, f));
+      } catch {
+        process.stderr.write(
+          `⚠  Warning: ${f} does not exist in the repository. Check the path and extension.\n`,
+        );
+      }
+    }
+  }
+
   const [dependents, entries] = await Promise.all([
     reverseDependencies(opts.repoRoot),
     readAllEntries(opts.repoRoot).catch(() => []),

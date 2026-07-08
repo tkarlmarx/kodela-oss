@@ -5,6 +5,7 @@ import {
   readContextEntry,
   loadLicense,
 } from "@kodela/core";
+import { resolveRepoIdentity, type RepoProvider } from "../utils/gitRemote.js";
 
 export interface SyncOptions {
   repoRoot: string;
@@ -29,8 +30,15 @@ async function syncBatch(
   serverUrl: string,
   apiKey: string,
   orgId?: string,
+  repo?: { repoFullName: string; provider: RepoProvider },
 ): Promise<{ ok: boolean; error?: string }> {
-  const payload = { sessionId, entries };
+  const payload: Record<string, unknown> = { sessionId, entries };
+  if (repo) {
+    // Lets the server scope these entries to the real repo_links row instead of
+    // the sessionId placeholder — the input for shared-memory read by repo.
+    payload.repoFullName = repo.repoFullName;
+    payload.provider = repo.provider;
+  }
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${apiKey}`,
@@ -65,6 +73,11 @@ export async function runSync(opts: SyncOptions): Promise<SyncResult> {
   const license = await loadLicense(repoRoot);
   const orgId = license?.orgId;
 
+  // Best-effort repo identity so the server can attach these entries to the
+  // real repo_links row (enables shared-memory read by repo). Null for
+  // local-only repos → server keeps the sessionId placeholder.
+  const repo = (await resolveRepoIdentity(repoRoot)) ?? undefined;
+
   const index = await readIndex(repoRoot);
   const errors: string[] = [];
   let entriesSynced = 0;
@@ -94,7 +107,7 @@ export async function runSync(opts: SyncOptions): Promise<SyncResult> {
 
     if (batchEntries.length >= batchSize) {
       if (!dryRun) {
-        const result = await syncBatch(batchEntries, batchSessionId, serverUrl, apiKey, orgId);
+        const result = await syncBatch(batchEntries, batchSessionId, serverUrl, apiKey, orgId, repo);
         if (!result.ok) {
           errors.push(result.error ?? "Unknown batch error");
         } else {
@@ -109,7 +122,7 @@ export async function runSync(opts: SyncOptions): Promise<SyncResult> {
 
   if (batchEntries.length > 0) {
     if (!dryRun) {
-      const result = await syncBatch(batchEntries, batchSessionId, serverUrl, apiKey, orgId);
+      const result = await syncBatch(batchEntries, batchSessionId, serverUrl, apiKey, orgId, repo);
       if (!result.ok) {
         errors.push(result.error ?? "Unknown batch error");
       } else {

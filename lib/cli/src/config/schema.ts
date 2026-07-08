@@ -310,6 +310,14 @@ export const KodelaConfigSchema = z.object({
        */
       mode: z.enum(["local", "central"]).default("local"),
       /**
+       * How agents/CLI READ context (Enterprise shared memory).
+       * "local"  — read only the local .kodela/ (default, offline).
+       * "remote" — read the org's shared memory from the server.
+       * "merge"  — union local + remote, reranked once.
+       * Inherited from the org config via `kodela config pull`.
+       */
+      readMode: z.enum(["local", "remote", "merge"]).optional(),
+      /**
        * Remote Kodela server to push annotations to in "central" mode.
        * Must include scheme and host (e.g. "https://kodela.example.com").
        * Ignored in "local" mode.

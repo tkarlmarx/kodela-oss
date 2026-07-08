@@ -668,7 +668,7 @@ describe("runWatch", () => {
     }
   });
 
-  test.skip("SIGTERM causes clean exit with code 0 [quarantined in CE: flaky signal-delivery race; active in enterprise]", async () => {
+  test.skip("SIGTERM causes clean exit with code 0 [quarantined: flaky signal-delivery race under concurrent CI load — see community.config.json]", async () => {
     const harnessPath = path.resolve(__dirname, "../test-helpers/watch-signal-harness.ts");
 
     const child = spawn(

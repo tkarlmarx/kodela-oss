@@ -289,8 +289,19 @@ export interface IngestRepoGraphResult {
   edgesSuperseded: number;
 }
 
+export interface OrgConfigRow {
+  orgId: string;
+  config: Record<string, unknown>;
+  updatedAt: string;
+}
+
 export interface KodelaStorage {
   upsertOrg(orgId: string): Promise<void>;
+
+  /** Org-wide config defaults/policies (admin-managed). Null when unset. */
+  getOrgConfig(orgId: string): Promise<OrgConfigRow | null>;
+  /** Upsert the org config bag (whole-object replace). Returns the stored row. */
+  setOrgConfig(orgId: string, config: Record<string, unknown>): Promise<OrgConfigRow>;
 
   insertAuditEvent(data: InsertAuditEventData): Promise<void>;
   queryAuditEvents(orgId: string, filters: AuditQueryFilters): Promise<AuditEventRow[]>;
@@ -309,7 +320,22 @@ export interface KodelaStorage {
   getRepoLinks(orgId: string): Promise<RepoLinkRow[]>;
   getRepoLinkById(id: string): Promise<RepoLinkRow | null>;
   getRepoLinkByFullName(repoFullName: string): Promise<RepoLinkRow | null>;
+  /**
+   * Tenant-scoped repo-link lookup. Prefer this over `getRepoLinkByFullName`
+   * on any org-scoped path (ingest, retrieval) — the unique index is
+   * `(org_id, provider, repo_full_name)`, so a bare full-name lookup can match
+   * a *different* org's repo and leak across tenants.
+   */
+  getRepoLinkByOrgAndFullName(orgId: string, repoFullName: string): Promise<RepoLinkRow | null>;
   insertRepoLink(data: InsertRepoLinkData): Promise<RepoLinkRow>;
+  /**
+   * Get-or-create a repo link for `(orgId, provider, repoFullName)`. Used by the
+   * central write path (`kodela sync`) so a repo the org has never explicitly
+   * connected still gets a stable `repo_links.id` to scope its entries under,
+   * instead of the pre-P6.5 sessionId placeholder. Concurrent-safe: relies on
+   * the unique index and re-reads on conflict.
+   */
+  ensureRepoLink(data: InsertRepoLinkData): Promise<RepoLinkRow>;
 
   getSnapshotsByRepoLink(repoLinkId: string): Promise<SnapshotRow[]>;
   getLatestSnapshotByRepoLinkId(repoLinkId: string): Promise<SnapshotRow | null>;
@@ -361,6 +387,26 @@ export interface KodelaStorage {
   /** P6.6 (internal design note) — `orgId` required so metrics never aggregate across tenants. */
   getEntryMetrics(orgId: string): Promise<EntryMetrics>;
   getAllEntries(): Promise<any[]>;
+  /**
+   * Read the index-shaped entry rows for one (org, repo), scoped for tenant
+   * isolation. Feeds server-side context retrieval (shared-memory read) by
+   * materialising them into an in-memory index for buildProjectContext.
+   */
+  getEntriesForRepo(orgId: string, repoId: string): Promise<EntryContextRow[]>;
+
+  /**
+   * Recall source: org+repo-scoped entries WITH note text (from `payload`), for
+   * shared-memory recall / "Ask Kodela" over the central server. MUST scope by
+   * `org_id` + `repo_id` so a reader never sees another tenant's why.
+   */
+  getRecallEntriesForRepo(orgId: string, repoId: string): Promise<RecallEntryRow[]>;
+
+  /**
+   * Graph slice for shared-memory get_why: the (org, repo)-scoped WHY edges +
+   * decisions. The fused graph is Postgres-only server-side, so the SQLite
+   * server adapter returns an empty graph (its ingestRepoGraph is a no-op).
+   */
+  getWhyGraphForRepo(orgId: string, repoId: string): Promise<WhyGraph>;
 
   // Seats / membership (internal design note). Seats are counted as ACTIVE memberships
   // per org and enforced against the org's licensed maxSeats.
@@ -503,4 +549,71 @@ export interface EntryMetrics {
   bySeverity: Record<string, number>;
   byStatus: Record<string, number>;
   recentSessions: number;
+}
+
+/**
+ * Index-shaped entry row (matches @kodela/core's EntryRow) for one (org, repo).
+ * Deliberately excludes the encrypted `note`/`payload` — server-side retrieval
+ * ranks on structure + scope, and the note is fetched/decrypted separately.
+ */
+export interface EntryContextRow {
+  id: string;
+  filePath: string;
+  schemaVersion: string;
+  status: string;
+  severity: string;
+  source: string;
+  confidence: number;
+  scope: string | null;
+  sessionId: string | null;
+  clusterId: string | null;
+  reviewRequired: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Recall-shaped entry row for one (org, repo) — includes the `note` (the actual
+ * captured *why*) + tags + line range, reconstructed from the stored `payload`.
+ * This is what powers shared-memory recall / "Ask Kodela" over the central
+ * server, where ranking is on the note text (not just structure). Only returned
+ * to authenticated, org-scoped readers.
+ */
+export interface RecallEntryRow {
+  id: string;
+  filePath: string;
+  note: string;
+  tags: string[];
+  severity: string;
+  status: string;
+  source: string;
+  confidence: number;
+  sessionId: string | null;
+  lineRange: { start: number; end: number };
+  createdAt: string;
+}
+
+/** A memory-graph edge for the shared-memory get_why traversal. */
+export interface WhyGraphEdgeRow {
+  edgeType: string;
+  sourceNodeType: string;
+  sourceNodeId: string;
+  targetNodeType: string;
+  targetNodeId: string;
+  confidence: number;
+}
+
+/** A decision node for the shared-memory get_why traversal. */
+export interface WhyGraphDecisionRow {
+  id: string;
+  title: string;
+  reason: string;
+  decidedAt: string;
+  supersededBy: string | null;
+}
+
+/** The (org, repo)-scoped graph slice get_why traverses: edges + decisions. */
+export interface WhyGraph {
+  edges: WhyGraphEdgeRow[];
+  decisions: WhyGraphDecisionRow[];
 }

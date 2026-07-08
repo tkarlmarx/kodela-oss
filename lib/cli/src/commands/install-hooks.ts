@@ -28,6 +28,8 @@ export type InstallHooksOptions = {
   force?: boolean;
   /** Gap 52 Phase A — also install Claude Code hooks into .claude/settings.json */
   claude?: boolean;
+  /** Also install a post-merge hook that runs `kodela sync` (central mode). */
+  sync?: boolean;
 };
 
 export type InstallHooksResult = {
@@ -36,6 +38,9 @@ export type InstallHooksResult = {
   postCommitInstalled: boolean;
   preCommitSkipped: boolean;
   postCommitSkipped: boolean;
+  /** Set only when --sync was passed. */
+  postMergeInstalled?: boolean;
+  postMergeSkipped?: boolean;
   /** Gap 52 Phase A — Claude Code hooks install result. Undefined when --claude was not passed. */
   claudeResult?: {
     settingsPath: string;
@@ -89,8 +94,13 @@ const POST_COMMIT_SCRIPT = `#!/usr/bin/env sh
 # Kodela post-commit hook
 # Installed by: kodela install-hooks
 #
-# After each commit, runs \`kodela heal\` to re-map context annotations against
-# the latest file state and records the new commit SHA in the baseline.
+# After each commit:
+#   1. \`kodela heal\` re-maps context annotations against the latest file state.
+#   2. \`kodela sync --auto\` pushes context to the central server — but ONLY when
+#      storage.mode is "central" (team/enterprise). It is a silent no-op for
+#      local-only repos, so this single hook works for everyone. Central mode is
+#      set once by an admin and inherited via \`kodela config-pull\`, so team sync
+#      is fully automatic — no developer ever runs \`kodela sync\` by hand.
 
 set -e
 
@@ -107,12 +117,41 @@ else
 fi
 
 $KODELA heal 2>/dev/null || true
+
+# Auto central-sync (no-op unless storage.mode: central). Backgrounded so it
+# never adds latency to the commit, and fully detached so it survives the hook.
+( $KODELA sync --auto >/dev/null 2>&1 & ) || true
+`;
+
+const POST_MERGE_SYNC_SCRIPT = `#!/usr/bin/env sh
+# Kodela post-merge sync hook
+# Installed by: kodela install-hooks --sync
+#
+# After each \`git pull\` / \`git merge\`, pushes newly captured context to the
+# central Kodela server (\`kodela sync\`). Non-fatal and silent when no server is
+# configured, so it is a no-op for local-only repos.
+
+set -e
+
+# Locate the kodela binary: prefer local node_modules, fall back to PATH.
+if [ -x "./node_modules/.bin/kodela" ]; then
+  KODELA="./node_modules/.bin/kodela"
+elif command -v kodela >/dev/null 2>&1; then
+  KODELA="kodela"
+elif command -v npx >/dev/null 2>&1; then
+  KODELA="npx --yes @kodela/cli"
+else
+  exit 0
+fi
+
+# Silent + non-fatal: no server configured → sync exits non-zero → swallowed.
+$KODELA sync >/dev/null 2>&1 || true
 `;
 
 export async function runInstallHooks(
   opts: InstallHooksOptions,
 ): Promise<InstallHooksResult> {
-  const { repoRoot, force = false, claude = false } = opts;
+  const { repoRoot, force = false, claude = false, sync = false } = opts;
 
   const hooksDir = path.join(repoRoot, ".git", "hooks");
 
@@ -150,6 +189,19 @@ export async function runInstallHooks(
     postCommitInstalled = true;
   }
 
+  // Opt-in central-sync: a post-merge hook that pushes context after each pull.
+  let postMergeInstalled: boolean | undefined;
+  let postMergeSkipped: boolean | undefined;
+  if (sync) {
+    const postMergePath = path.join(hooksDir, "post-merge");
+    if ((await fileExists(postMergePath)) && !force) {
+      postMergeSkipped = true;
+    } else {
+      await fs.writeFile(postMergePath, POST_MERGE_SYNC_SCRIPT, { mode: 0o755 });
+      postMergeInstalled = true;
+    }
+  }
+
   // Gap 52 Phase A — optionally install Claude Code hooks alongside git hooks.
   let claudeResult: InstallHooksResult["claudeResult"] | undefined;
   if (claude) {
@@ -158,7 +210,7 @@ export async function runInstallHooks(
 
   // Gap 78 — write hooksInstalled: true to kodela.config.json whenever at
   // least one hook was newly written, so the field reflects reality.
-  if (preCommitInstalled || postCommitInstalled) {
+  if (preCommitInstalled || postCommitInstalled || postMergeInstalled) {
     await writeConfigHooksInstalled(repoRoot);
   }
 
@@ -168,6 +220,8 @@ export async function runInstallHooks(
     postCommitInstalled,
     preCommitSkipped,
     postCommitSkipped,
+    postMergeInstalled,
+    postMergeSkipped,
     claudeResult,
   };
 }
@@ -192,7 +246,13 @@ export function formatInstallHooksResult(result: InstallHooksResult): string {
   if (result.postCommitInstalled) {
     lines.push("✓ Installed .git/hooks/post-commit");
     lines.push(
-      "  Runs `kodela heal` after each commit to keep annotations in sync.",
+      "  Runs `kodela heal` after each commit, then `kodela sync --auto` — which",
+    );
+    lines.push(
+      "  auto-pushes context in team/enterprise (storage.mode: central) and is a",
+    );
+    lines.push(
+      "  silent no-op for local-only repos. Team sync needs no manual step.",
     );
   } else if (result.postCommitSkipped) {
     lines.push(
@@ -200,7 +260,25 @@ export function formatInstallHooksResult(result: InstallHooksResult): string {
     );
   }
 
-  if (!result.preCommitInstalled && !result.postCommitInstalled) {
+  if (result.postMergeInstalled) {
+    lines.push("✓ Installed .git/hooks/post-merge");
+    lines.push(
+      "  Runs `kodela sync` after each pull/merge to push context to the central",
+    );
+    lines.push(
+      "  server (silent no-op when no server is configured).",
+    );
+  } else if (result.postMergeSkipped) {
+    lines.push(
+      "⚠ Skipped .git/hooks/post-merge — file already exists. Use --force to overwrite.",
+    );
+  }
+
+  if (
+    !result.preCommitInstalled &&
+    !result.postCommitInstalled &&
+    !result.postMergeInstalled
+  ) {
     lines.push("No git hooks were installed. Use --force to overwrite existing hooks.");
   }
 

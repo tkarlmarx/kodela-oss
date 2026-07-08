@@ -87,15 +87,24 @@ describe("runMigrateToSaas", () => {
   let originalFetch: typeof globalThis.fetch;
   let fetchStub: FetchStub;
 
+  let savedOrgIdEnv: string | undefined;
+
   beforeEach(async () => {
     repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "kodela-migrate-saas-test-"));
     await initBaseline(repoRoot, { force: true });
     fetchStub = { calls: [], responses: [] };
     originalFetch = installFetchStub(fetchStub);
+    // The api-server requires X-Kodela-Org-Id; give the POST-path tests a default
+    // org via the env fallback so they exercise a real header (individual tests
+    // override with the --org-id option or clear this to test the error path).
+    savedOrgIdEnv = process.env.KODELA_ORG_ID;
+    process.env.KODELA_ORG_ID = "org-test";
   });
 
   afterEach(async () => {
     globalThis.fetch = originalFetch;
+    if (savedOrgIdEnv === undefined) delete process.env.KODELA_ORG_ID;
+    else process.env.KODELA_ORG_ID = savedOrgIdEnv;
     await fs.rm(repoRoot, { recursive: true, force: true });
   });
 
@@ -146,6 +155,11 @@ describe("runMigrateToSaas", () => {
     assert.equal(call.method, "POST");
     assert.equal(call.headers["Authorization"], "Bearer test-key");
     assert.equal(call.headers["Content-Type"], "application/json");
+    assert.equal(
+      call.headers["X-Kodela-Org-Id"],
+      "org-test",
+      "the org header the Enterprise server requires must be sent",
+    );
     assert.equal(call.body.repoId, "repo-001");
     assert.equal(call.body.entries.length, 1);
     assert.equal(call.body.entries[0]!.id, entry.id);
@@ -276,6 +290,51 @@ describe("runMigrateToSaas", () => {
     assert.equal(result.httpErrors.length, 1);
     assert.match(result.httpErrors[0]!, /HTTP 503/);
     assert.equal(result.entriesUploaded, 1, "successful batch still counted");
+  });
+
+  test("an explicit --org-id overrides the KODELA_ORG_ID env fallback", async () => {
+    const entry = makeEntry();
+    await writeContextEntry(repoRoot, entry);
+    fetchStub.responses.push({
+      status: 200,
+      body: {
+        repoId: "repo-001",
+        orgId: "org-explicit",
+        entriesAccepted: 1,
+        sessionsAccepted: 0,
+        signoffsAccepted: 0,
+        commentsAccepted: 0,
+        rejections: [],
+      },
+    });
+
+    await runMigrateToSaas({
+      repoRoot,
+      serverUrl: "https://example.test",
+      apiKey: "test-key",
+      repoId: "repo-001",
+      orgId: "org-explicit",
+    });
+
+    assert.equal(fetchStub.calls[0]!.headers["X-Kodela-Org-Id"], "org-explicit");
+  });
+
+  test("throws a clear error (not a silent 401) when no org id can be resolved", async () => {
+    delete process.env.KODELA_ORG_ID; // no --org-id, no env, no license
+    const entry = makeEntry();
+    await writeContextEntry(repoRoot, entry);
+
+    await assert.rejects(
+      () =>
+        runMigrateToSaas({
+          repoRoot,
+          serverUrl: "https://example.test",
+          apiKey: "test-key",
+          repoId: "repo-001",
+        }),
+      (err) => err instanceof MigrateToSaasError && /X-Kodela-Org-Id/.test((err as Error).message),
+    );
+    assert.equal(fetchStub.calls.length, 0, "must fail before POSTing");
   });
 
   test("throws MigrateToSaasError when required options are missing", async () => {

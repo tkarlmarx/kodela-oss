@@ -10,6 +10,7 @@ export const AUDIT_EVENT_TYPES = [
   "context_updated",
   "context_archived",
   "exception_approved",
+  "config_updated",
 ] as const;
 
 export type AuditEventType = (typeof AUDIT_EVENT_TYPES)[number];
