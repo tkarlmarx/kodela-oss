@@ -20,7 +20,25 @@
 
 import { createRequire } from "node:module";
 import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { CodeGraphFunction, SupportedLanguage } from "./types.js";
+
+/**
+ * Resolve the directory that contains this module at runtime.
+ * - In normal ESM:  import.meta.url is a file:// URL → dirname(fileURLToPath(...))
+ * - In esbuild CJS bundle: the banner shim sets importMetaUrl = pathToFileURL(__filename).href
+ *   so import.meta.url still works the same way.
+ * Used as a fallback to locate WASM files copied next to the bundle.
+ */
+function currentDir(): string {
+  try {
+    return dirname(fileURLToPath(import.meta.url));
+  } catch {
+    // Last-resort: __filename is always defined in CJS
+    return dirname((globalThis as any).__filename ?? process.execPath);
+  }
+}
 
 type WasmGrammarModule =
   | "@lumis-sh/wasm-typescript"
@@ -156,12 +174,14 @@ function resolveWebTreeSitterWasm(): string | null {
   try {
     const req = nodeRequire();
     // The package declares `./web-tree-sitter.wasm` as an exports subpath, so
-    // `require.resolve` returns the absolute on-disk path directly.  Resolving
-    // `./package.json` would fail under the modern exports map.
+    // `require.resolve` returns the absolute on-disk path directly.
     const wasmPath = req.resolve("web-tree-sitter/web-tree-sitter.wasm");
     return existsSync(wasmPath) ? wasmPath : null;
   } catch {
-    return null;
+    // When bundled into the CLI tarball (dist/bin.cjs), the WASM file is
+    // copied into dist/ alongside the bundle. Look for it next to this module.
+    const localWasm = join(currentDir(), "web-tree-sitter.wasm");
+    return existsSync(localWasm) ? localWasm : null;
   }
 }
 
@@ -211,7 +231,12 @@ function resolveGrammarPath(pkg: WasmGrammarModule): string | null {
     const wasmPath = req.resolve(GRAMMAR_WASM_SUBPATH[pkg]);
     return existsSync(wasmPath) ? wasmPath : null;
   } catch {
-    return null;
+    // When bundled into the CLI tarball, grammar WASM files are copied into
+    // dist/ alongside the bundle. The filename is the last segment of the
+    // WASM subpath (e.g. "tree-sitter-typescript.wasm").
+    const wasmFile = GRAMMAR_WASM_SUBPATH[pkg].split("/").pop()!;
+    const localWasm = join(currentDir(), wasmFile);
+    return existsSync(localWasm) ? localWasm : null;
   }
 }
 

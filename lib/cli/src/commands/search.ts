@@ -16,6 +16,12 @@ import { formatEntries } from "../output/formatters.js";
 import type { EmbeddingOptions } from "./ai-layer.js";
 import { resolveEmbedder } from "@kodela/embed";
 
+// Show the CE upsell at most once per process (i.e. once per terminal command).
+// Showing it on every `kodela search` invocation is noisy for developers who
+// run search frequently. The message still appears on the first use to inform
+// new users about the Team tier.
+let upsellShown = false;
+
 export type SearchOptions = {
   repoRoot: string;
   query: string;
@@ -263,7 +269,8 @@ export async function runSearch(
 
   let licenseWarning: string | undefined;
   const license = await loadLicense(repoRoot);
-  if (!licenseHasFeature(license, "search")) {
+  if (!licenseHasFeature(license, "search") && !upsellShown) {
+    upsellShown = true;
     licenseWarning =
       "Full-text search across large repositories works best with a Team license. " +
       "Results shown from local .kodela/ only. " +

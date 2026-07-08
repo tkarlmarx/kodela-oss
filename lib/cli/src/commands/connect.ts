@@ -131,6 +131,18 @@ export const TOOL_REGISTRY: ToolAdapter[] = [
       ),
   },
   {
+    id: "kiro",
+    name: "Kiro",
+    mode: "json",
+    jsonKey: "mcpServers",
+    // Kiro reads workspace-level MCP config from .kiro/settings/mcp.json.
+    // Uses project scope so the config travels with the repo (same as Cursor).
+    // Detection: ~/.kiro is created when Kiro is installed on the machine.
+    scope: "project",
+    configPath: (r) => path.join(r, ".kiro", "settings", "mcp.json"),
+    detect: () => exists(path.join(HOME, ".kiro")),
+  },
+  {
     id: "continue",
     name: "Continue",
     // Continue's MCP config is YAML and version-dependent — print the snippet

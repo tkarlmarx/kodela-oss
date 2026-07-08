@@ -18,6 +18,14 @@
     "dist/index.cjs.map",
     "dist/mcp-server.cjs",
     "dist/mcp-server.cjs.map",
+    "dist/web-tree-sitter.wasm",
+    "dist/tree-sitter-typescript.wasm",
+    "dist/tree-sitter-tsx.wasm",
+    "dist/tree-sitter-python.wasm",
+    "dist/tree-sitter-go.wasm",
+    "dist/tree-sitter-rust.wasm",
+    "dist/tree-sitter-java.wasm",
+    "dist/tree-sitter-bash.wasm",
     "README.md"
   ],
   "keywords": [
