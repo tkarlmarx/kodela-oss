@@ -21,7 +21,7 @@ This repository *is* a Claude Code plugin marketplace (see
 Claude Code:
 
 ```
-/plugin marketplace add rudratic-cyber/kodela
+/plugin marketplace add tkarlmarx/kodela-oss
 /plugin install kodela@kodela
 ```
 

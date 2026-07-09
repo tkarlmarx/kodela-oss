@@ -4,7 +4,7 @@
 #
 # Kodela one-line installer.
 #
-#   curl -fsSL https://raw.githubusercontent.com/rudratic-cyber/kodela/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/tkarlmarx/kodela-oss/main/install.sh | sh
 #
 # Wraps the published npm package: it verifies Node is present, then runs
 # `kodela setup` (guided onboarding) in the current directory via npx — no clone,
@@ -17,7 +17,7 @@ set -eu
 
 ACTION="${1:-${KODELA_ACTION:-setup}}"
 PKG="@kodela/cli"
-MIN_NODE_MAJOR=20
+MIN_NODE_MAJOR=22
 
 info() { printf '\033[36m›\033[0m %s\n' "$1"; }
 ok()   { printf '\033[32m✓\033[0m %s\n' "$1"; }
@@ -63,4 +63,4 @@ npx -y "${PKG}" ${ARGS}
 
 ok "Kodela is set up."
 info "Next: open your AI tool and start coding — Kodela captures the *why* as you go."
-info "Docs: https://github.com/rudratic-cyber/kodela#readme"
+info "Docs: https://github.com/tkarlmarx/kodela-oss#readme"

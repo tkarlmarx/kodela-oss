@@ -3,7 +3,7 @@
   "name": "kodela",
   "owner": {
     "name": "The Kodela Authors",
-    "url": "https://github.com/rudratic-cyber/kodela"
+    "url": "https://github.com/tkarlmarx/kodela-oss"
   },
   "description": "Kodela — the system of record for the *why* behind code changes. Captures why every change happened, turns it into a queryable memory graph, and surfaces it to humans and AI agents.",
   "plugins": [

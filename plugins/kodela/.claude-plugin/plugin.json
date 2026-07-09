@@ -6,10 +6,10 @@
   "description": "The system of record for the *why* behind code changes. Wires the Kodela MCP server into Claude Code so every session can capture the reasoning behind changes and recall the relevant prior why — plus comprehension, guided tours, diff-impact and architecture tools.",
   "author": {
     "name": "The Kodela Authors",
-    "url": "https://github.com/rudratic-cyber/kodela"
+    "url": "https://github.com/tkarlmarx/kodela-oss"
   },
-  "homepage": "https://github.com/rudratic-cyber/kodela#readme",
-  "repository": "https://github.com/rudratic-cyber/kodela",
+  "homepage": "https://github.com/tkarlmarx/kodela-oss#readme",
+  "repository": "https://github.com/tkarlmarx/kodela-oss",
   "license": "Apache-2.0",
   "keywords": ["mcp", "memory", "context", "why", "decisions", "code-review", "onboarding"],
   "mcpServers": {

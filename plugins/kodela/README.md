@@ -20,7 +20,7 @@ full `kodela_*` toolset:
 From inside Claude Code:
 
 ```
-/plugin marketplace add rudratic-cyber/kodela
+/plugin marketplace add tkarlmarx/kodela-oss
 /plugin install kodela@kodela
 ```
 
