@@ -15,7 +15,7 @@
 <p align="center">
   <a href="https://www.npmjs.com/package/@kodela/cli"><img src="https://img.shields.io/npm/v/@kodela/cli?color=FF8A3D&label=npm" alt="npm version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
-  <img src="https://img.shields.io/badge/node-%3E%3D24-339933?logo=node.js&logoColor=white" alt="Node >= 24">
+  <img src="https://img.shields.io/badge/node-%3E%3D22-339933?logo=node.js&logoColor=white" alt="Node >= 22">
   <img src="https://img.shields.io/badge/MCP-ready-FF8A3D" alt="MCP ready">
   <a href="https://github.com/tkarlmarx/kodela-oss"><img src="https://img.shields.io/github/stars/tkarlmarx/kodela-oss?style=social" alt="GitHub stars"></a>
 </p>
@@ -63,7 +63,7 @@ Then browse everything Kodela has captured in a free local web app:
 npx -y @kodela/cli ui     # → http://localhost:7420
 ```
 
-Requires Node 24+.
+Requires Node 22+.
 
 ## See it in action
 
