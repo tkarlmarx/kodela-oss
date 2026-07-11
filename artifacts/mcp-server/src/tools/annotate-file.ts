@@ -28,6 +28,7 @@ import {
   upsertEntry,
   hashTokenStream,
   hashFilePath,
+  classifyRisk,
   SCHEMA_VERSION,
 } from "@kodela/core";
 
@@ -148,8 +149,12 @@ export const AnnotateFileInputSchema = z.object({
 
   risk: z
     .enum(["low", "medium", "high", "critical"])
-    .default("low")
-    .describe("Risk level of this file's change"),
+    .optional()
+    .describe(
+      "Risk level of this file's change. Omit to compute it from the file path " +
+        "(auth/security/db/payments paths score higher) and change size — set it " +
+        "explicitly only to override (e.g. escalate to 'critical').",
+    ),
 });
 
 export type AnnotateFileInput = z.infer<typeof AnnotateFileInputSchema>;
@@ -251,6 +256,11 @@ export async function annotateFile(
   const now = new Date().toISOString();
   const entryId = crypto.randomUUID();
 
+  // Risk is computed from the file path + change size when the agent doesn't
+  // set it — so a change under auth/security/db/payments is never silently
+  // recorded as "low". An explicit `risk` (e.g. escalating to "critical") wins.
+  const risk = input.risk ?? classifyRisk(input.file_path, input.lines_added, input.lines_removed);
+
   // 5. Build the partial ContextEntry
   const partial: ContextEntry = {
     schemaVersion: SCHEMA_VERSION,
@@ -263,7 +273,7 @@ export async function annotateFile(
     author: modifiedBy.author,
     createdAt: now,
     updatedAt: now,
-    severity: input.risk,
+    severity: risk,
     tags: [
       "per-file-context",
       `session:${input.session_id}`,
@@ -276,7 +286,7 @@ export async function annotateFile(
     attributionConfidence: modifiedBy.source === "ai" ? 0.95 : 1.0,
     canUpgradeAttribution: false,
     status: "mapped",
-    reviewRequired: input.risk === "high" || input.risk === "critical",
+    reviewRequired: risk === "high" || risk === "critical",
     sessionId: input.session_id,
     origin: modifiedBy.tool
       ? {
@@ -448,8 +458,8 @@ export async function annotateFile(
       : {}),
     relatedFiles: input.related_files,
     relatedEntryIds: existingFileContext?.relatedEntryIds ?? [],
-    risk: input.risk,
-    reviewRequired: input.risk === "high" || input.risk === "critical",
+    risk,
+    reviewRequired: risk === "high" || risk === "critical",
     entryIds: existingFileContext
       ? [...new Set([...existingFileContext.entryIds, entryId])]
       : [entryId],

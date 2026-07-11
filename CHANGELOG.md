@@ -3,6 +3,18 @@
 All notable changes to the Community Edition are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.2.0] — 2026-07-11
+
+### Added
+- **Decision-violation / contradiction detection** — flags when a change reverses or
+  contradicts a recorded decision (opposite stance on the same entity, or reviving a
+  superseded choice), with a topic-gate to keep false positives low.
+- **Governance metrics** — decisions honored vs. violated and AI-intent coverage,
+  surfaced via the new `kodela governance` command.
+- **Real code-graph import edges** — the comprehension graph now derives IMPORT edges
+  from parsed dependencies, not just function containment.
+- **Auto change description** — richer, inferred summaries for captured changes.
+
 ## [1.1.2] — 2026-07-11
 
 ### Changed

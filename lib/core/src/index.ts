@@ -116,6 +116,8 @@ export type {
 } from "./context-event/index.js";
 
 export { summarize, detectChangeType, classifyRisk, extractIntent, generateSummary } from "./annotation/summarize.js";
+export { describeChange, extractSymbols, fileRole } from "./annotation/describeChange.js";
+export type { ChangeSignals, FileRole } from "./annotation/describeChange.js";
 export type { SummarizeInput, AnnotationSummary as SummaryResult } from "./annotation/summarize.js";
 
 export { enrichEntry } from "./annotation/enrich.js";
@@ -144,6 +146,37 @@ export type {
   FetchRemoteWhyOptions,
 } from "./context/index.js";
 export { whyForFile, WHY_EDGE_TYPES } from "./why/whyForFile.js";
+
+export {
+  detectContradictions,
+  detectContradictionsAsync,
+  cosine,
+  changeText,
+  stanceOf,
+  BUILTIN_ALIASES,
+  OPPOSED,
+} from "./contradiction/index.js";
+export type {
+  Stance,
+  EntityStance,
+  ContradictionDecision,
+  ContradictionChange,
+  ContradictionKind,
+  ContradictionFlag,
+  DetectOptions,
+  EmbedFn,
+  JudgeFn,
+  JudgeVerdict,
+  AsyncDetectOptions,
+} from "./contradiction/index.js";
+
+export { computeGovernance } from "./governance/index.js";
+export type {
+  GovernanceChange,
+  GovernanceInput,
+  GovernanceViolation,
+  GovernanceScorecard,
+} from "./governance/index.js";
 export type {
   WhyEntry,
   WhyEdge,

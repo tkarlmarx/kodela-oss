@@ -249,3 +249,39 @@ describe("loadUiData fuses file→decision links from the local graph store", ()
     assert.ok(data.graph.edges.every((e) => e.kind !== "implements"), "no implements edges without the store");
   });
 });
+
+describe("loadUiData adds real import/dependency edges (gap #4 code-graph edges)", () => {
+  let tmp: string;
+
+  before(async () => {
+    tmp = await fs.mkdtemp(path.join(os.tmpdir(), "kodela-ui-dep-"));
+    await fs.writeFile(path.join(tmp, "package.json"), JSON.stringify({ name: "dep-ui" }));
+    // routes.ts imports session.ts — a real code-structure edge, independent of
+    // whether the two files were ever captured in the same session.
+    await fs.writeFile(path.join(tmp, "session.ts"), "export const rotate = () => 1;\n");
+    await fs.writeFile(path.join(tmp, "routes.ts"), "import { rotate } from './session.js';\nexport const r = rotate;\n");
+    await runInit(tmp);
+    await runAdd({ repoRoot: tmp, filePath: "session.ts", lineStart: 1, lineEnd: 1, note: "token rotation primitive", severity: "high", source: "human" });
+    await runAdd({ repoRoot: tmp, filePath: "routes.ts", lineStart: 1, lineEnd: 2, note: "wires rotation into the router", severity: "medium", source: "ai" });
+  });
+
+  after(async () => {
+    await fs.rm(tmp, { recursive: true, force: true });
+  });
+
+  test("emits a directed depends edge from importer to imported file", async () => {
+    const data = await loadUiData(tmp);
+    const dep = data.graph.edges.find((e) => e.kind === "depends" && e.a === "routes.ts" && e.b === "session.ts");
+    assert.ok(dep, "routes.ts -> session.ts depends edge present");
+    // and it must NOT invent a reverse edge (imports are directional)
+    assert.ok(!data.graph.edges.some((e) => e.kind === "depends" && e.a === "session.ts" && e.b === "routes.ts"), "no reverse depends edge");
+  });
+
+  test("depends edges only connect files that are both on the canvas", async () => {
+    const data = await loadUiData(tmp);
+    const ids = new Set(data.graph.nodes.map((n) => n.id));
+    for (const e of data.graph.edges.filter((x) => x.kind === "depends")) {
+      assert.ok(ids.has(e.a) && ids.has(e.b), `both endpoints of ${e.a}->${e.b} are nodes`);
+    }
+  });
+});

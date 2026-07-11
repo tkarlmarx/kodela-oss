@@ -78,6 +78,8 @@ import {
 import { runRecall } from "./commands/recall.js";
 import { runHygiene, formatHygieneResult } from "./commands/hygiene.js";
 import type { HygieneSeverity } from "@kodela/core/hygiene";
+import { runCheck, formatCheckResult } from "./commands/check.js";
+import { runGovernance, formatGovernance } from "./commands/governance.js";
 import { loadLicense, fetchRemoteRecall, mergeRecallItems } from "@kodela/core";
 import { resolveRepoIdentity } from "./utils/gitRemote.js";
 import { runComprehend, formatComprehendResult } from "./commands/comprehend.js";
@@ -1714,6 +1716,86 @@ program
       process.stderr.write(
         `Error: ${err instanceof Error ? err.message : String(err)}\n`,
       );
+      process.exit(1);
+    }
+  });
+
+// Contradiction / decision-violation detection. Flags a described change (or,
+// with no argument, scans proposed decisions) that reverses an active decision.
+program
+  .command("check")
+  .description(
+    "Flag a change (or a proposed decision) that contradicts an active decision.\n" +
+    "  kodela check \"reintroduce mongodb for caching\"   check a described change\n" +
+    "  kodela check                                        scan proposed decisions\n" +
+    "  High-precision, offline. Use --ci to fail a build when a violation is found.",
+  )
+  .argument("[change...]", "Description of the change to check. Omit to scan proposed decisions.")
+  .option("--min-confidence <n>", "Only report flags at or above this confidence (0-1, default 0)", "0")
+  .option("--semantic", "Recall dial: add an on-device embedding topic-match (catches reversals phrased unlike the lexicon; offline).", false)
+  .option("--ci", "Exit non-zero when any contradiction is found", false)
+  .option("-o, --output <format>", "Output format: text, json", "text")
+  .action(async (change: string[], opts: { minConfidence: string; semantic: boolean; ci: boolean; output: string }) => {
+    const repoRoot = await findRepoRoot(process.cwd());
+    const output = opts.output === "json" ? "json" : "text";
+    try {
+      const result = await runCheck({
+        repoRoot,
+        change: change.length > 0 ? change.join(" ") : undefined,
+        minConfidence: parseFloat(opts.minConfidence),
+        semantic: opts.semantic,
+      });
+      if (output === "json") {
+        process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+      } else {
+        process.stdout.write(formatCheckResult(result) + "\n");
+      }
+      if (opts.ci && result.violationCount > 0) {
+        process.stderr.write(
+          `${result.violationCount} decision violation(s) found — failing the build.\n`,
+        );
+        process.exit(1);
+      }
+      process.exit(0);
+    } catch (err) {
+      process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+      process.exit(1);
+    }
+  });
+
+// Governance scorecard — decisions honored vs violated, AI-intent coverage, and
+// the composite governance score for engineering leaders (the moat metrics).
+program
+  .command("governance")
+  .description(
+    "Show the governance scorecard: decision breakdown, proposed conflicts,\n" +
+    "  AI-authored change attribution, and % of AI changes with captured intent.\n" +
+    "  Use --ci --min-score to gate a build on the governance score.",
+  )
+  .option("--ci", "Exit non-zero when the governance score is below --min-score", false)
+  .option("--min-score <n>", "Minimum acceptable governance score in --ci mode (default 80)", "80")
+  .option("-o, --output <format>", "Output format: text, json", "text")
+  .action(async (opts: { ci: boolean; minScore: string; output: string }) => {
+    const repoRoot = await findRepoRoot(process.cwd());
+    try {
+      const result = await runGovernance({ repoRoot });
+      if (opts.output === "json") {
+        process.stdout.write(JSON.stringify(result.scorecard, null, 2) + "\n");
+      } else {
+        process.stdout.write(formatGovernance(result) + "\n");
+      }
+      if (opts.ci) {
+        const minScore = parseInt(opts.minScore, 10);
+        if (result.scorecard.governanceScore < minScore) {
+          process.stderr.write(
+            `Governance score ${result.scorecard.governanceScore} is below the required ${minScore}.\n`,
+          );
+          process.exit(1);
+        }
+      }
+      process.exit(0);
+    } catch (err) {
+      process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
       process.exit(1);
     }
   });

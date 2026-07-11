@@ -63,6 +63,11 @@ import {
   formatSearchDecisionsResponse,
 } from "./tools/search-decisions.js";
 import {
+  checkContradictionForMcp,
+  CheckContradictionInputSchema,
+  formatCheckContradictionResponse,
+} from "./tools/check-contradiction.js";
+import {
   supersedeDecisionForMcp,
   SupersedeDecisionInputSchema,
   formatSupersedeDecisionResponse,
@@ -737,6 +742,41 @@ async function main(): Promise<void> {
         const result = searchDecisionsForMcp(repoRoot, parsed, db);
         return {
           content: [{ type: "text", text: formatSearchDecisionsResponse(result) }],
+          isError: !result.ok,
+        };
+      } catch (err) {
+        return {
+          content: [{ type: "text", text: `Error: ${err instanceof Error ? err.message : String(err)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // ── Decision Intelligence: kodela_check_contradiction ─────────────────────
+  server.tool(
+    "kodela_check_contradiction",
+    "Pre-edit guard: flags whether a change (or a proposed decision) REVERSES " +
+    "or CONTRADICTS an active recorded decision — the empty-quadrant feature " +
+    "(auto-captured why + contradiction detection).\n\n" +
+    "Parameters:\n" +
+    "  change          — plain-language description of what you're about to do\n" +
+    "  org_id, repo_id — optional scope\n" +
+    "  min_confidence  — drop flags below this (0–1)\n\n" +
+    "High-precision: only ACTIVE decisions are enforced. Offline, no LLM. Call " +
+    "this BEFORE making a change that touches an architectural choice.",
+    {
+      change:         CheckContradictionInputSchema.shape.change,
+      org_id:         CheckContradictionInputSchema.shape.org_id,
+      repo_id:        CheckContradictionInputSchema.shape.repo_id,
+      min_confidence: CheckContradictionInputSchema.shape.min_confidence,
+    },
+    async (input) => {
+      try {
+        const parsed = CheckContradictionInputSchema.parse(input);
+        const result = await checkContradictionForMcp(repoRoot, parsed, db);
+        return {
+          content: [{ type: "text", text: formatCheckContradictionResponse(result) }],
           isError: !result.ok,
         };
       } catch (err) {

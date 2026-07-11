@@ -23,3 +23,6 @@ export type {
 
 export { detectCommunities } from "./communities.js";
 export type { GraphCommunity, CommunityDetectionResult } from "./communities.js";
+
+export { importEdges, extractRelativeImports } from "./importEdges.js";
+export type { ImportEdge, ImportEdgeFile } from "./importEdges.js";

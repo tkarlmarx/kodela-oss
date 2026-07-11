@@ -34,6 +34,8 @@ import {
   AnnotationDeduplicator,
   ubaScore,
   enrichEntry,
+  describeChange,
+  extractSymbols,
 } from "@kodela/core";
 import type { ContextEntry, UbaSignals } from "@kodela/core";
 import { computeDiff } from "@kodela/diff";
@@ -726,8 +728,10 @@ function buildAutoNote(opts: {
   hunkCount: number;
   totalLines: number;
   nearestHeading: string | null;
+  filePath?: string;
+  addedSymbols?: string[];
 }): string {
-  const { toolLabel, source, summary, hunkCount, totalLines, nearestHeading } = opts;
+  const { toolLabel, source, summary, hunkCount, totalLines, nearestHeading, filePath } = opts;
 
   // 1. Use the AI tool / sidecar summary if available.
   if (summary && summary.trim().length > 0) {
@@ -736,7 +740,15 @@ function buildAutoNote(opts: {
     return (label + firstSentence).slice(0, 200);
   }
 
-  // 2. Rich heuristic fallback.
+  // 2. Change-aware description — infers WHAT changed (added symbol, file role,
+  //    nearest symbol) instead of a generic size template.
+  if (filePath) {
+    const label = toolLabel ? `Auto-annotated (${toolLabel}): ` : "Auto-annotated: ";
+    const desc = describeChange({ filePath, addedSymbols: opts.addedSymbols, hunkCount, nearestHeading });
+    return (label + desc).slice(0, 200);
+  }
+
+  // 3. Plain fallback when the file path isn't available.
   const toolPart = toolLabel ?? (source === "ai" ? "AI" : "unknown agent");
   const hunkPart = hunkCount === 1 ? "1 hunk" : `${hunkCount} hunks`;
   const linePart = totalLines === 1 ? "1 line" : `${totalLines} lines`;
@@ -1326,6 +1338,11 @@ async function handleAutoAnnotate(
       0,
     );
     const nearestHeading = extractNearestHeading(afterContent, firstHunkStart);
+    // Symbols defined in the changed regions — lets the fallback note say what
+    // was actually added ("Added `rotateToken`…") rather than just its size.
+    const afterLines = afterContent.split("\n");
+    const changedLines = hunks.flatMap((h) => afterLines.slice(h.range[0] - 1, h.range[1]));
+    const addedSymbols = extractSymbols(changedLines);
     const heuristicNote = buildAutoNote({
       toolLabel: attribution.aiTool ?? sidecar?.aiTool ?? sidecar?.tool,
       source: finalSource,
@@ -1333,6 +1350,8 @@ async function handleAutoAnnotate(
       hunkCount: hunks.length,
       totalLines: totalHunkLines,
       nearestHeading,
+      filePath: relPath,
+      addedSymbols,
     });
 
     // Compute a compact diff string whenever it is needed:

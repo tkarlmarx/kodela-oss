@@ -19,6 +19,7 @@ import http from "node:http";
 import path from "node:path";
 import fs from "node:fs/promises";
 import { spawn } from "node:child_process";
+import { importEdges } from "@kodela/core";
 import { readAllEntries } from "./status.js";
 import { runMetrics } from "./metrics.js";
 import { runComprehend } from "./comprehend.js";
@@ -143,7 +144,12 @@ export interface UiGraphEdge {
   a: string;
   b: string;
   w: number;
-  /** "cochange" | "implements" — co-change link vs file→decision link. */
+  /**
+   * "cochange" | "depends" | "implements" —
+   *  - cochange:   the two files were captured in the same session (co-occurrence)
+   *  - depends:    file `a` imports file `b` (real code-structure edge)
+   *  - implements: file `a` implements decision `b` (fused IMPLEMENTS edge)
+   */
   kind?: string;
 }
 
@@ -218,7 +224,9 @@ export interface FusedLink {
  * *fused* picture — not just which files move together, but which decision each
  * file implements:
  *
- *  - **file** nodes linked by **co-change** (captured in the same session), and
+ *  - **file** nodes linked by **co-change** (captured in the same session),
+ *  - **file** nodes linked by **depends** (file A imports file B — a real
+ *    code-structure edge, computed from the source, distinct from co-change), and
  *  - **decision** nodes linked to the files that implement them (**implements**),
  *    sourced from the fused graph's `IMPLEMENTS` edges (file_change -> decision).
  *
@@ -231,6 +239,7 @@ function buildGraph(
   entries: EntryLike[],
   decisions: UiDecision[] = [],
   fusedLinks: FusedLink[] = [],
+  sources: Map<string, string> = new Map(),
 ): { nodes: UiGraphNode[]; edges: UiGraphEdge[] } {
   const topFiles = files.slice(0, 120); // cap for readability + O(n^2) sim cost
   const nodeSet = new Set(topFiles.map((f) => f.path));
@@ -274,6 +283,19 @@ function buildGraph(
     .sort((x, y) => y.w - x.w)
     .slice(0, 400);
 
+  // Real code-structure edges: file A imports file B. Computed from the actual
+  // source of the files on the canvas, so this is genuine import/dependency
+  // coupling — not "moved together in a session". A `depends` edge that mirrors
+  // an existing `cochange` pair is kept as its own kind so the view can show
+  // BOTH "they change together" and "one imports the other".
+  const onCanvas = topFiles
+    .filter((f) => sources.has(f.path))
+    .map((f) => ({ path: f.path, source: sources.get(f.path) ?? "" }));
+  for (const dep of importEdges(onCanvas)) {
+    if (!nodeSet.has(dep.from) || !nodeSet.has(dep.to)) continue;
+    edges.push({ a: dep.from, b: dep.to, w: 2, kind: "depends" });
+  }
+
   // Fuse in the decisions each file implements. A decision node joins the graph
   // only when at least one of its files is on the canvas, so the radial view
   // never sprouts orphan decision nodes.
@@ -301,6 +323,37 @@ function buildGraph(
   }
 
   return { nodes, edges };
+}
+
+/**
+ * Read the on-disk source of the (already size-capped) files that carry captured
+ * context, so `buildGraph` can compute real import/dependency edges between them.
+ * Best-effort: files that no longer exist (renamed/deleted since capture) or that
+ * are too large simply contribute no source and therefore no dependency edges.
+ * Only the graph's node set is read — never the whole repo — keeping `kodela ui`
+ * single-repo, read-only, and cheap.
+ */
+async function readSourcesForFiles(
+  repoRoot: string,
+  files: UiFile[],
+): Promise<Map<string, string>> {
+  const CAP = 120; // matches buildGraph's topFiles cap — no point reading more
+  const MAX_BYTES = 512 * 1024; // skip generated/minified megafiles
+  const top = files.slice(0, CAP);
+  const out = new Map<string, string>();
+  await Promise.allSettled(
+    top.map(async (f) => {
+      try {
+        const abs = path.join(repoRoot, f.path);
+        const stat = await fs.stat(abs);
+        if (!stat.isFile() || stat.size > MAX_BYTES) return;
+        out.set(f.path, await fs.readFile(abs, "utf8"));
+      } catch {
+        // missing / unreadable — no dependency edges for this file
+      }
+    }),
+  );
+  return out;
 }
 
 /**
@@ -455,7 +508,7 @@ export async function loadUiData(repoRoot: string): Promise<UiData> {
     .map(([p, es]) => ({ path: p, count: es.length, entries: es }))
     .sort((a, b) => b.count - a.count || a.path.localeCompare(b.path));
 
-  const [metrics, decisions, fusedLinks] = await Promise.all([
+  const [metrics, decisions, fusedLinks, sources] = await Promise.all([
     runMetrics({ repoRoot })
       .then((m) => ({
         memorySize: m.memorySize,
@@ -466,6 +519,7 @@ export async function loadUiData(repoRoot: string): Promise<UiData> {
       .catch(() => null),
     loadDecisions(repoRoot).catch(() => [] as UiDecision[]),
     readFusedLinks(repoRoot).catch(() => [] as FusedLink[]),
+    readSourcesForFiles(repoRoot, files).catch(() => new Map<string, string>()),
   ]);
 
   return {
@@ -475,7 +529,7 @@ export async function loadUiData(repoRoot: string): Promise<UiData> {
     stats: { entries: entries.length, files: byFile.size, bySource },
     files,
     metrics,
-    graph: buildGraph(files, entries, decisions, fusedLinks),
+    graph: buildGraph(files, entries, decisions, fusedLinks, sources),
     decisions,
     generatedAt: new Date().toISOString().slice(0, 19).replace("T", " "),
   };
@@ -546,12 +600,14 @@ export function buildUiHtml(): string {
   .glegend .dia { width: 9px; height: 9px; background: #cc6a14; display: inline-block; transform: rotate(45deg); }
   .glegend .spk { width: 14px; height: 0; display: inline-block; }
   .glegend .spk.co { border-top: 2px solid rgba(120,130,150,0.6); }
+  .glegend .spk.dep { border-top: 2px solid #2563eb; }
   .glegend .spk.im { border-top: 2px dashed #cc6a14; }
   .ghint { position: absolute; left: 12px; bottom: 10px; max-width: 62%; color: #9ca3af; font-size: 12px; pointer-events: none; }
   #ginfo { width: 340px; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px; overflow: auto; background: #fff; }
   #ginfo .gp { font-family: ui-monospace, monospace; color: var(--brand); font-size: 13px; word-break: break-all; margin-bottom: 8px; }
   #ginfo .glnk { font-size: 12px; color: #6b7280; margin-bottom: 8px; }
   #ginfo .gdec { color: #b35a0f; margin-right: 6px; white-space: nowrap; }
+  #ginfo .gdep { color: #2563eb; margin-right: 6px; white-space: nowrap; }
   /* Decisions tab */
   .dec { border: 1px solid #e5e7eb; border-radius: 12px; background: #fff; padding: 14px 16px; margin: 12px 0; }
   .dec .dhead { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
@@ -802,7 +858,7 @@ export function buildUiHtml(): string {
       '<p>Kodela captures the <b>why</b> behind every code change — who changed it (you or which AI tool), the problem it solved, the reasoning, and the alternatives rejected — and keeps it next to the code. This is the free, local, read-only viewer for that captured memory. No account; nothing leaves your machine.</p>' +
       '<h2>The tabs</h2><ul>' +
       '<li><span class="tagk">Files</span> Every file with captured context, most-active first. Click a file to expand its full why-history. <b>Copy why for PR</b> puts a Markdown summary on your clipboard to paste into a pull request.</li>' +
-      '<li><span class="tagk">Graph</span> A <b>radial memory map</b>. The centre is your project; the first ring is its most-active files. Click a file to make it the new centre and fan out the files it co-changes with (grey spokes) and the <b>decisions it implements</b> (copper diamonds, dashed spokes) — so you can see the <i>why</i>, not just what moved together. Click a decision to see every file that implements it. The breadcrumb climbs back out; <code>+N</code> pages through a crowded ring; scroll to zoom. Node size = activity; colour = who captured it (copper = AI, green = human, amber = mixed).</li>' +
+      '<li><span class="tagk">Graph</span> A <b>radial memory map</b>. The centre is your project; the first ring is its most-active files. Click a file to make it the new centre and fan out the files it co-changes with (grey spokes), the files it <b>imports</b> (blue spokes with an arrow — real code structure, not just what moved together), and the <b>decisions it implements</b> (copper diamonds, dashed spokes) — so you see the <i>why</i> and the <i>wiring</i>, not just co-occurrence. Click a decision to see every file that implements it. The breadcrumb climbs back out; <code>+N</code> pages through a crowded ring; scroll to zoom. Node size = activity; colour = who captured it (copper = AI, green = human, amber = mixed).</li>' +
       '<li><span class="tagk">Decisions</span> Human-authored decisions — the problem, the decision, the reasoning, the options considered (chosen vs rejected), and the outcome. Read-only here.</li>' +
       '<li><span class="tagk">Timeline</span> Every captured change, newest first, so you can replay how the reasoning in your codebase evolved.</li>' +
       '<li><span class="tagk">Memory health</span> Whether your agent is getting smarter: memory size, captures per session and its trend, and how often sessions reuse prior context.</li>' +
@@ -820,7 +876,7 @@ export function buildUiHtml(): string {
       '<span class="pill"><code>kodela metrics</code> — the numbers behind Memory health</span>' +
       '</div>' +
       '<h2>Community Edition</h2>' +
-      '<p class="note">This is the free, Apache-2.0 Community Edition — single-user and local. Team, Cloud, and Enterprise editions add shared team memory, a collaborative dashboard, governance (roles, sign-off, audit), and hosted or air-gapped deployment.</p>' +
+      '<p class="note">This is the free, Apache-2.0 Community Edition — <b>one developer, one repository, entirely on your machine</b> (no account, no cloud). It includes the full memory graph (co-change, imports and function→decision), contradiction checks and risk scoring. Team, Cloud, and Enterprise editions add shared team memory across repos, a collaborative dashboard, decision-integrity governance (scorecard, roles, sign-off, audit) and PR checks, and hosted or air-gapped deployment.</p>' +
       '</div>';
   }
   function srcColor(s) { return s === "ai" ? "#ff8a3d" : s === "human" ? "#16a34a" : s === "mixed" ? "#d97706" : s === "decision" ? "#cc6a14" : s === "root" ? "#FF8A3D" : "#9ca3af"; }
@@ -830,16 +886,17 @@ export function buildUiHtml(): string {
     var files = g.nodes.filter(function (n) { return n.kind !== "decision"; }).length;
     var decs = g.nodes.length - files;
     var impl = g.edges.filter(function (e) { return e.kind === "implements"; }).length;
-    var co = g.edges.length - impl;
+    var dep = g.edges.filter(function (e) { return e.kind === "depends"; }).length;
+    var co = g.edges.length - impl - dep;
     return '<div class="graphwrap"><div id="gwrap">' +
       '<div id="gcrumb"></div>' +
       '<canvas id="gcanvas"></canvas>' +
       '<div class="glegend">' +
         '<span><i class="dot ai"></i>AI</span><span><i class="dot human"></i>human</span>' +
         '<span><i class="dot mixed"></i>mixed</span><span><i class="dia"></i>decision</span>' +
-        '<span><i class="spk co"></i>co-change</span><span><i class="spk im"></i>implements</span>' +
+        '<span><i class="spk co"></i>co-change</span><span><i class="spk dep"></i>imports</span><span><i class="spk im"></i>implements</span>' +
       '</div>' +
-      '<div class="ghint">' + files + ' files · ' + decs + ' decisions · ' + co + ' co-change · ' + impl + ' implements — click the center to expand, a node to dive in, a crumb to go back</div>' +
+      '<div class="ghint">' + files + ' files · ' + decs + ' decisions · ' + co + ' co-change · ' + dep + ' imports · ' + impl + ' implements — click the center to expand, a node to dive in, a crumb to go back</div>' +
       '</div>' +
       '<aside id="ginfo"></aside></div>';
   }
@@ -910,7 +967,7 @@ export function buildUiHtml(): string {
       view = [{ id: focus, node: byId[focus], ring: 0, tx: 0, ty: 0, isMore: false }];
       for (var i = 0; i < slice.length; i++) {
         var ang = a0 + i * 2 * Math.PI / Math.max(n, 1);
-        view.push({ id: slice[i].id, node: byId[slice[i].id], ring: 1, w: slice[i].w, isMore: false, tx: Math.cos(ang) * R, ty: Math.sin(ang) * R });
+        view.push({ id: slice[i].id, node: byId[slice[i].id], ring: 1, w: slice[i].w, ekind: slice[i].kind, isMore: false, tx: Math.cos(ang) * R, ty: Math.sin(ang) * R });
       }
       if (hasMore) {
         var ang2 = a0 + (n - 1) * 2 * Math.PI / Math.max(n, 1);
@@ -944,13 +1001,29 @@ export function buildUiHtml(): string {
       // spokes from the focus to each ring node
       view.forEach(function (it) {
         if (it.ring !== 1) return; var p = pos[it.id];
-        // "implements" link is copper + dashed in BOTH directions (file→decision
-        // and decision→file), so the relationship reads the same either way.
+        // Spoke style by relationship:
+        //  - implements (file↔decision): copper + dashed, both directions
+        //  - depends (file imports file): solid blue + arrowhead toward the import
+        //  - co-change (session co-occurrence): faint grey
         var foc = byId[focus];
         var isImpl = (it.node && it.node.kind === "decision") || (foc && foc.kind === "decision");
-        ctx.strokeStyle = isImpl ? "rgba(204,106,20,0.55)" : "rgba(120,130,150,0.30)"; ctx.lineWidth = isImpl ? 2 : 1.2;
+        var isDep = !isImpl && it.ekind === "depends";
+        ctx.strokeStyle = isImpl ? "rgba(204,106,20,0.55)" : isDep ? "rgba(37,99,235,0.55)" : "rgba(120,130,150,0.30)";
+        ctx.lineWidth = isImpl ? 2 : isDep ? 1.8 : 1.2;
         ctx.setLineDash(isImpl ? [5, 4] : []);
-        ctx.beginPath(); ctx.moveTo(ccx, ccy); ctx.lineTo(cx + p.x, cy + p.y); ctx.stroke();
+        var ex = cx + p.x, ey = cy + p.y;
+        ctx.beginPath(); ctx.moveTo(ccx, ccy); ctx.lineTo(ex, ey); ctx.stroke();
+        if (isDep) {
+          // small arrowhead ~72% along the spoke, pointing at the imported file
+          var dx = ex - ccx, dy = ey - ccy, L = Math.sqrt(dx * dx + dy * dy) || 1;
+          var ux = dx / L, uy = dy / L, hx = ccx + dx * 0.72, hy = ccy + dy * 0.72, ah = 6;
+          ctx.fillStyle = "rgba(37,99,235,0.7)";
+          ctx.beginPath();
+          ctx.moveTo(hx, hy);
+          ctx.lineTo(hx - ux * ah - uy * ah * 0.6, hy - uy * ah + ux * ah * 0.6);
+          ctx.lineTo(hx - ux * ah + uy * ah * 0.6, hy - uy * ah - ux * ah * 0.6);
+          ctx.closePath(); ctx.fill();
+        }
       });
       ctx.setLineDash([]);
       // centre glow + orbit ring — echoes the Kodela loader
@@ -1016,8 +1089,19 @@ export function buildUiHtml(): string {
       }
       var f = null; for (var i = 0; i < DATA.files.length; i++) { if (DATA.files[i].path === nd.id) { f = DATA.files[i]; break; } }
       var decs = decisionsForFile(nd.id);
+      var base = function (p) { return p.split("/").pop() || p; };
+      var imports = [], importedBy = [];
+      (DATA.graph.edges || []).forEach(function (e) {
+        if (e.kind !== "depends") return;
+        if (e.a === nd.id) imports.push(e.b);
+        else if (e.b === nd.id) importedBy.push(e.a);
+      });
+      var depHtml = "";
+      if (imports.length) depHtml += '<div class="glnk">Imports ' + imports.map(function (x) { return '<span class="gdep">→ ' + esc(base(x)) + '</span>'; }).join(" ") + '</div>';
+      if (importedBy.length) depHtml += '<div class="glnk">Imported by ' + importedBy.map(function (x) { return '<span class="gdep">← ' + esc(base(x)) + '</span>'; }).join(" ") + '</div>';
       info.innerHTML = '<div class="gp">' + esc(nd.id) + '</div>' +
         (decs.length ? '<div class="glnk">Implements ' + decs.map(function (x) { return '<span class="gdec">◆ ' + esc(x) + '</span>'; }).join(" ") + '</div>' : '') +
+        depHtml +
         (f ? f.entries.map(entryHtml).join("") : '<p class="empty">No entries.</p>');
     }
     function updateCrumb() {
