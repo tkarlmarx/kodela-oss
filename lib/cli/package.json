@@ -1,6 +1,6 @@
 {
   "name": "@kodela/cli",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "private": false,
   "description": "Kodela CLI — the system of record for AI-assisted development. One-line `kodela connect` wires the Kodela MCP server + silent-capture watcher into every AI coding tool.",
   "type": "module",

@@ -3,6 +3,12 @@
 All notable changes to the Community Edition are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.1.2] — 2026-07-11
+
+### Changed
+- Maintenance release: no functional changes. First release published through the
+  automated CI pipeline with npm provenance (supply-chain attestation).
+
 ## [1.1.1] — 2026-07-11
 
 ### Changed
