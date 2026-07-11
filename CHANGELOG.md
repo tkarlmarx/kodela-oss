@@ -3,6 +3,12 @@
 All notable changes to the Community Edition are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.1.1] — 2026-07-11
+
+### Changed
+- Maintenance release: no functional changes to the CLI. Restores the automated,
+  tag-triggered npm publish pipeline so builds are reproducible from source.
+
 ## [1.0.0] — 2026-07-06
 
 ### Added
