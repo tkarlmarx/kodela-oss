@@ -25,14 +25,14 @@ based on [Keep a Changelog](https://keepachangelog.com/).
 ### Fixed
 - Graph tab now respects severity filter chips (Critical/High/Medium/Low) — previously
   showed all nodes regardless of the active filter.
-- `kodela ui` handles port conflicts gracefully with a helpful message and kill
+- `kodela ui` now handles port conflicts gracefully with a helpful message and kill
   command instead of crashing with a raw Node.js stack trace.
-- `kodela impact` warns when a specified file does not exist in the repository
+- `kodela impact` now warns when a specified file does not exist in the repository
   instead of silently returning an empty blast radius.
-- `kodela connect` shows clear `--npx` guidance when run outside the monorepo
+- `kodela connect` now shows clear `--npx` guidance when run outside the monorepo
   instead of a cryptic `pnpm-workspace.yaml` error.
 - Tree-sitter WASM files now bundled in the npm tarball — `kodela comprehend` and
-  `kodela tour` show function and class-level detail (not just file names).
+  `kodela tour` now show function and class-level detail (not just file names).
 - `kodela connect` now auto-detects Kiro and writes `.kiro/settings/mcp.json`.
 - Search upsell message now shown once per session instead of on every invocation.
 
