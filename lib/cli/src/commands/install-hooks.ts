@@ -118,9 +118,10 @@ fi
 
 $KODELA heal 2>/dev/null || true
 
-# Auto central-sync (no-op unless storage.mode: central). Backgrounded so it
-# never adds latency to the commit, and fully detached so it survives the hook.
-( $KODELA sync --auto >/dev/null 2>&1 & ) || true
+# Auto central-sync (no-op unless storage.mode: central). Runs inline so the
+# sync completes before the hook exits. Adds ~1-2s to commit time for team/
+# enterprise repos; is a silent instant no-op for local-only repos.
+$KODELA sync --auto 2>/dev/null || true
 `;
 
 const POST_MERGE_SYNC_SCRIPT = `#!/usr/bin/env sh
